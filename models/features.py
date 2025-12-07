@@ -3,8 +3,8 @@ __email__ = "dylan.warnecke@gmail.com"
 
 from datetime import datetime
 
-from equities.equity import EquityData
-from markets.observations import ObservationsData
+from features.equities.equity import EquityData
+from features.markets.observations import ObservationsData
 
 
 class FeaturesData:
@@ -18,7 +18,9 @@ class FeaturesData:
         :param equity: EquityData object containing equity data
         :param market: MarketData object containing market data
         """
-        self._features = pd.DataFrame()
+        self._equity = equity
+        self._market = market
+        self._features = equity.features.join(market.features, how="inner")
 
     def split(
         self, train_end: datetime, dev_end: datetime, test_end: datetime
@@ -37,5 +39,4 @@ class FeaturesData:
         test_data = self._features[
             (self._features.index > dev_end) & (self._features.index < test_end)
         ].copy()
-
         return train_data, dev_data, test_data

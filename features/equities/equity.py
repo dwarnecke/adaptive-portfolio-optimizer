@@ -3,8 +3,8 @@ __email__ = "dylan.warnecke@gmail.com"
 
 from pandas import DataFrame
 
-from equities.fundamentals.fundamentals import FundamentalsData
-from equities.technicals.technicals import TechnicalsData
+from features.equities.fundamentals.fundamentals import FundamentalsData
+from features.equities.technicals.technicals import TechnicalsData
 
 
 class Equity:
