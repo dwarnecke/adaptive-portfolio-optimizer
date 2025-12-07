@@ -40,6 +40,4 @@ pip-wheel-metadata/
 .pyright/
 
 # Data caches / downloads (repo-specific)
-data/external/**/cache/
-data/external/**/download/
-data/external/**/info/
+data/simfin/**

@@ -5,10 +5,19 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from features.equities.technicals.trend import calc_rate_of_change, calc_relative_strength_index
-from features.equities.technicals.volatility import calc_average_true_range, calc_max_drawdown
+from features.equities.technicals.trend import (
+    calc_rate_of_change,
+    calc_relative_strength_index,
+)
+from features.equities.technicals.volatility import (
+    calc_average_true_range,
+    calc_max_drawdown,
+)
 from features.equities.technicals.position import calc_zscore
-from features.equities.technicals.relation import calc_relative_return, calc_rolling_beta
+from features.equities.technicals.relation import (
+    calc_relative_return,
+    calc_rolling_beta,
+)
 
 
 class TechnicalsData:
@@ -35,7 +44,7 @@ class TechnicalsData:
         :return: DataFrame copy containing technical data
         """
         return self._data.copy()
-    
+
     @property
     def features(self) -> pd.DataFrame:
         """
@@ -72,7 +81,7 @@ class TechnicalsData:
         self._features = pd.DataFrame(index=self._data.index)
 
         # Core indicator measure different aspects of stock performance
-        lengths = [5, 60, 250, 1000]
+        lengths = [5, 60, 120, 250]
         for length in lengths:
             self._calc_normal_scores(length)
             self._calc_drawdown(length)

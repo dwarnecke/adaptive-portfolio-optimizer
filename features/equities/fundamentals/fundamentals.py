@@ -61,8 +61,9 @@ class FundamentalsData:
     def features(self) -> pd.DataFrame:
         """
         Get the calculated features DataFrame.
-        :return: DataFrame containing calculated features
+        :return: DataFrame containing calculated features with NA indicators
         """
+        # Drop market capitalization as it provides no predictive power
         features = self._features.copy()
         features = features.drop(columns=["MC"])
         return features
@@ -76,15 +77,12 @@ class FundamentalsData:
             statement_data = concept_data[concept_data["Ticker"] == self._TICKER]
             self._data[concept] = statement_data
             dates_name = "Report Date" if concept != "shares" else "Date"
-            dates = statement_data[dates_name]
-            dates = dates.apply(cast_str_date)
-            concept_min_date = min(dates)
+            dates = statement_data[dates_name].apply(cast_str_date)
             # Use the maximum of all minimum dates to ensure all data sources have data
-            self._min_date = (
-                max(concept_min_date, self._min_date)
-                if self._min_date
-                else concept_min_date
-            )
+            if self._min_date is None:
+                self._min_date = min(dates)
+            else:
+                self._min_date = max(min(dates), self._min_date)
             self._dates = sorted(set(self._dates).union(set(dates)))
 
     def _calc_features(self, dates: list[datetime] = None):
@@ -112,7 +110,13 @@ class FundamentalsData:
         self._calc_revenue_growth(dates)
         self._calc_earnings_growth(dates)
 
+        # Add indicator features for features that can be NA
         self._features.replace([np.inf, -np.inf, np.nan], None, inplace=True)
+        na_features = ["OM", "ROE", "RG", "EG"]
+        for feature in na_features:
+            self._features[f"{feature}_NA"] = self._features[feature].isna().astype(int)
+            # Zero out NA values in the original feature
+            self._features[feature] = self._features[feature].fillna(0)
 
     def _calc_market_caps(self, dates: list[datetime]):
         """

@@ -7,7 +7,7 @@ from features.equities.fundamentals.fundamentals import FundamentalsData
 from features.equities.technicals.technicals import TechnicalsData
 
 
-class Equity:
+class EquityData:
     """
     Class to hold and manage ticker technical and fundamental data for an equity.
     """
@@ -21,6 +21,7 @@ class Equity:
         self._TICKER = ticker
         self._fundamentals = FundamentalsData(ticker, data)
         self._technicals = TechnicalsData(ticker)
+        self._features = self._calc_features()
 
     @property
     def ticker(self) -> str:
@@ -36,7 +37,14 @@ class Equity:
         Get the features data for the equity.
         :returns: Features object
         """
-        fundamentals_features = self._fundamentals.features
-        technicals_features = self._technicals.features
-        combined_features = fundamentals_features.join(technicals_features, how="inner")
-        return combined_features
+        return self._features.copy()
+    
+    def _calc_features(self) -> DataFrame:
+        """
+        Calculate and combine technical and fundamental features.
+        :returns: DataFrame with combined features
+        """
+        features = self._technicals.features.join(
+            self._fundamentals.features, how="inner"
+        )
+        return features

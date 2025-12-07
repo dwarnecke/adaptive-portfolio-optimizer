@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 
-class ForwardModel(nn.Module):
+class Model(nn.Module):
     """
     Transformer model to predict 20-day forward returns and volatility.
     """
@@ -68,7 +68,7 @@ class ForwardModel(nn.Module):
         y = self.encoder(y, mask=mask)
 
         # Softplus volatility output to ensure positivity
-        y = y[:, -1, :]
+        y = y[:, -1]
         y = self.output_layer(y)
         mu = y[:, 0]
         sigma = nn.functional.softplus(y[:, 1])
