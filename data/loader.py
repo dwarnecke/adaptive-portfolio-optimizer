@@ -4,7 +4,7 @@ __email__ = "dylan.warnecke@gmail.com"
 import logging
 import simfin as sf
 
-from zother.keys import get_api_key
+from utils.keys import get_api_key
 
 # Suppress SimFin logging messages unless they are critical
 logging.getLogger("simfin").setLevel(logging.CRITICAL)

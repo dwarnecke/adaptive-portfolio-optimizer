@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 from equities.fundamentals.balances import get_balance
 from equities.fundamentals.earnings import get_trailing_earnings
 from equities.fundamentals.shares import get_shares_outstanding
-from zother.dates import cast_str_date, convert_datetimeindex, list_trading_dates
-from zother.keys import get_api_key
+from utils.dates import cast_str_date, convert_datetimeindex, list_trading_dates
+from utils.keys import get_api_key
 
 # Set SimFin configuration
 sf.set_api_key(get_api_key("simfin"))

@@ -5,7 +5,7 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime
 
-from zother.dates import get_next_trading_date
+from utils.dates import get_next_trading_date
 
 VIX = yf.Ticker("^VIX")
 VIX3M = yf.Ticker("^VIX3M")
