@@ -3,8 +3,8 @@ __email__ = "dylan.warnecke@gmail.com"
 
 import pandas as pd
 
-from markets.observations import ObservationsData
-from markets.regime import RegimeModel
+from features.markets.observations import ObservationsData
+from features.markets.regime import RegimeModel
 
 
 class MarketData:
@@ -59,33 +59,23 @@ class MarketData:
         Combine observation features with regime state probabilities.
         :returns: DataFrame with all features including regime probabilities
         """
-        obs_features = self._observations.inputs.copy()
+        observation_inputs = self._observations.inputs.copy()
 
         # Calculate state probabilities for each date
         state_probs = []
-        dates = obs_features.index.tolist()
-
+        dates = observation_inputs.index.tolist()
         for i, date in enumerate(dates):
             # Use only data up to current date for state estimation
-            data_up_to_date = obs_features.iloc[:i+1]
-            
-            # Normalize using regime model's scaling
-            normalized_data = self._regime._normalize_data(data_up_to_date)
-            
-            # Get state probabilities at this date
+            data_to_date = observation_inputs.iloc[: i + 1]
+            normalized_data = self._regime._normalize_data(data_to_date)
             probs = self._regime.hmm.predict_transition_proba(normalized_data)
             state_probs.append(probs)
 
         # Create DataFrame with state probabilities
-        state_prob_columns = [f"regime_{i}_prob" for i in range(self._regime._num_states)]
-        state_prob_df = pd.DataFrame(
-            state_probs,
-            index=dates,
-            columns=state_prob_columns
-        )
+        prob_columns = [f"regime_{i}_prob" for i in range(self._regime.num_states)]
+        state_prob_df = pd.DataFrame(state_probs, index=dates, columns=prob_columns)
 
         # Combine observations and regime probabilities
-        combined = pd.concat([obs_features, state_prob_df], axis=1)
+        combined = pd.concat([observation_inputs, state_prob_df], axis=1)
 
         return combined
-

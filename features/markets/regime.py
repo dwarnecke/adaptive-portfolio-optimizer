@@ -8,8 +8,8 @@ import pickle
 from datetime import datetime
 from pathlib import Path
 
-from markets.hmm import HiddenMarkovModel
-from other.dates import list_trading_dates
+from features.markets.hmm import HiddenMarkovModel
+from utils.dates import list_trading_dates
 
 
 class RegimeModel:
@@ -100,7 +100,7 @@ class RegimeModel:
 
         # Save the regime model metadata and scaling parameters
         regime_data = {
-            "num_states": self._num_states,
+            "num_states": self.num_states,
             "num_observations": self._num_observations,
             "num_features": self._num_features,
             "scaling_means": self._scaling_means,
@@ -136,6 +136,14 @@ class RegimeModel:
 
         return model
 
+    @property
+    def num_states(self) -> int:
+        """
+        Get the number of hidden states in the HMM.
+        :returns: Number of hidden states
+        """
+        return self._num_states
+
     def _update_parameters(self, data: pd.DataFrame) -> None:
         """
         Initialize scaling parameters from the provided data.
@@ -149,7 +157,7 @@ class RegimeModel:
         # Initialize the HMM model with the updated parameters
         self._num_observations = data.shape[0]
         self._num_features = data.shape[1]
-        self.hmm = HiddenMarkovModel(self._num_states, self._num_features)
+        self.hmm = HiddenMarkovModel(self.num_states, self._num_features)
 
     def _normalize_data(self, data: pd.DataFrame) -> pd.DataFrame:
         """

@@ -7,9 +7,9 @@ import simfin as sf
 import yfinance as yf
 from datetime import datetime, timedelta
 
-from equities.fundamentals.balances import get_balance
-from equities.fundamentals.earnings import get_trailing_earnings
-from equities.fundamentals.shares import get_shares_outstanding
+from features.equities.fundamentals.balances import get_balance
+from features.equities.fundamentals.earnings import get_trailing_earnings
+from features.equities.fundamentals.shares import get_shares_outstanding
 from utils.dates import cast_str_date, convert_datetimeindex, list_trading_dates
 from utils.keys import get_api_key
 

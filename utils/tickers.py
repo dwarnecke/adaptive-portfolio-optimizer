@@ -4,7 +4,7 @@ __email__ = "dylan.warnecke@gmail.com"
 import yfinance as yf
 from datetime import datetime, timedelta
 
-from other.dates import get_last_trading_date
+from utils.dates import get_last_trading_date
 
 
 def get_close_price(ticker: str, date: datetime) -> float:

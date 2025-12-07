@@ -5,10 +5,10 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from equities.technicals.trend import calc_rate_of_change, calc_relative_strength_index
-from equities.technicals.volatility import calc_average_true_range, calc_max_drawdown
-from equities.technicals.position import calc_zscore
-from equities.technicals.relation import calc_relative_return, calc_rolling_beta
+from features.equities.technicals.trend import calc_rate_of_change, calc_relative_strength_index
+from features.equities.technicals.volatility import calc_average_true_range, calc_max_drawdown
+from features.equities.technicals.position import calc_zscore
+from features.equities.technicals.relation import calc_relative_return, calc_rolling_beta
 
 
 class TechnicalsData:

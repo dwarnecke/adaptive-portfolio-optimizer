@@ -2,9 +2,9 @@ __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
 from datetime import datetime
-from markets.observations import ObservationsData
-from markets.regime import RegimeModel
-from markets.market import MarketData
+from features.markets.observations import ObservationsData
+from features.markets.regime import RegimeModel
+from features.markets.market import MarketData
 
 # Test ObservationsData
 print("Testing ObservationsData...")

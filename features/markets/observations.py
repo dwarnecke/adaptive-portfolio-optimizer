@@ -4,13 +4,13 @@ __email__ = "dylan.warnecke@gmail.com"
 import pandas as pd
 from datetime import datetime
 
-from markets.features.vix_term import calc_term_structures
-from markets.features.index_momentum import calc_log_returns_20d
-from markets.features.index_volatility import calc_log_return_stds_20d
-from markets.features.treasury_slope import calc_2y10y_slopes
-from markets.targets.forward_returns import calc_forward_log_returns_20d
-from markets.targets.forward_volatility import calc_forward_log_return_stds_20d
-from other.dates import list_trading_dates
+from features.markets.features.vix_term import calc_term_structures
+from features.markets.features.index_momentum import calc_log_returns_20d
+from features.markets.features.index_volatility import calc_log_return_stds_20d
+from features.markets.features.treasury_slope import calc_2y10y_slopes
+from features.markets.targets.forward_returns import calc_forward_log_returns_20d
+from features.markets.targets.forward_volatility import calc_forward_log_return_stds_20d
+from utils.dates import list_trading_dates
 
 
 class ObservationsData:
