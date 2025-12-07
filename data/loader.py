@@ -15,7 +15,7 @@ def load_fundamentals():
     Load all SimFin fundamentals data for immediate use.
     """
     sf.set_api_key(get_api_key("simfin"))
-    sf.set_data_dir("data/other/simfin/")
+    sf.set_data_dir("data/simfin/")
 
     # Load the fundamentals data from SimFin
     incomes = sf.load("income", market="us", variant="quarterly")
