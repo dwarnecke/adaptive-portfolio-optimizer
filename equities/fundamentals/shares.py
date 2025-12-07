@@ -4,7 +4,7 @@ __email__ = "dylan.warnecke@gmail.com"
 import pandas as pd
 from datetime import datetime
 
-from zother.dates import cast_str_date
+from utils.dates import cast_str_date
 
 
 def get_shares_outstanding(data: pd.DataFrame, dates: list[datetime]) -> pd.Series:

@@ -3,7 +3,7 @@ __email__ = "dylan.warnecke@gmail.com"
 
 import pandas as pd
 from datetime import datetime
-from zother.dates import list_trading_dates
+from utils.dates import list_trading_dates
 
 # FRED CSV URLs for 2Y and 10Y Treasury yields (daily, no API key required)
 FRED_2Y_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2"
