@@ -1,0 +1,10 @@
+ipython
+jupyter
+logging
+lxml
+matplotlib
+numpy
+pandas
+simfin
+torch
+yfinance
