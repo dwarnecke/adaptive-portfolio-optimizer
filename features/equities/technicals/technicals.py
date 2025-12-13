@@ -19,6 +19,8 @@ from features.equities.technicals.relation import (
     calc_rolling_beta,
 )
 
+from utils.tickers import download_data
+
 
 class TechnicalsData:
     """
@@ -37,33 +39,16 @@ class TechnicalsData:
         self._features = pd.DataFrame()
         self._calc_indicators()
 
-    @property
-    def data(self) -> pd.DataFrame:
-        """
-        Get the technical data DataFrame.
-        :return: DataFrame copy containing technical data
-        """
-        return self._data.copy()
-
-    @property
-    def features(self) -> pd.DataFrame:
-        """
-        Get the technical features DataFrame.
-        :return: DataFrame copy containing technical features
-        """
-        return self._features.copy()
-
     def _download_data(self):
         """
         Download historical stock data.
         """
-        # Download maximum available historical data
-        data = yf.download(self._TICKER, period="max", progress=False, auto_adjust=True)
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(0)
-
-        # Remove timezone to make dates timezone-naive
-        data.index = data.index.tz_localize(None)
+        data = download_data(self._TICKER)
+        
+        # Skip processing if no data was downloaded
+        if data.empty:
+            self._data = pd.DataFrame()
+            return
 
         # Log transformations standardize movements on larger price scales
         data["Log Close"] = np.log(data["Close"] + 1e-8)
@@ -71,31 +56,29 @@ class TechnicalsData:
         data["Log Low"] = np.log(data["Low"] + 1e-8)
         data["Log Open"] = np.log(data["Open"] + 1e-8)
         data["Log Volume"] = np.log(data["Volume"] + 1e-8)
-
         self._data = data
 
     def _calc_indicators(self):
         """
         Calculate all technical indicators and add them to the data DataFrame.
         """
+        # Skip processing if no data is available
+        if self._data.empty:
+            self._features = pd.DataFrame()
+            return
         self._features = pd.DataFrame(index=self._data.index)
 
-        # Core indicator measure different aspects of stock performance
         lengths = [5, 60, 120, 250]
         for length in lengths:
             self._calc_normal_scores(length)
             self._calc_drawdown(length)
             self._calc_momentum(length)
-
-        # Market relative indicators measure performance against the market
-        relative_return_lengths = [5, 60, 250]
-        for length in relative_return_lengths:
+        lengths = [5, 60, 250]
+        for length in lengths:
             self._calc_relative_return(length)
-        beta_lengths = [60, 250]
-        for length in beta_lengths:
+        lengths = [60, 250]
+        for length in lengths:
             self._calc_beta(length)
-
-        # Technical indicators are widely used measures of stock behavior
         self._calc_strength()
         self._calc_volatility()
 
@@ -156,3 +139,27 @@ class TechnicalsData:
         """
         beta = calc_rolling_beta(self._data, length)
         self._features[f"Beta {length}"] = beta
+
+    @property
+    def data(self) -> pd.DataFrame:
+        """
+        Get the technical data DataFrame.
+        :return: DataFrame copy containing technical data
+        """
+        return self._data.copy()
+
+    @property
+    def features(self) -> pd.DataFrame:
+        """
+        Get the technical features DataFrame.
+        :return: DataFrame copy containing technical features
+        """
+        return self._features.copy()
+
+    @property
+    def empty(self) -> bool:
+        """
+        Check if the technical data is empty.
+        :return: True if data is empty, False otherwise
+        """
+        return self._data.empty

@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
+from utils.dates import list_dates
 
 SPY = yf.Ticker("^GSPC")
 
@@ -21,6 +22,7 @@ def calc_log_return_stds(
     :param length: Number of periods (days) for each volatility calculation
     :returns: Series of annualized volatilities indexed by end-of-period date
     """
+    dates = pd.to_datetime(list_dates(start_date, end_date))
     start = start_date - pd.Timedelta(days=length * 2)
     prices = SPY.history(start=start, end=end_date)["Close"].astype(float)
     # Remove timezone to make dates timezone-naive
@@ -28,10 +30,8 @@ def calc_log_return_stds(
     log_prices = prices.apply(np.log)
     log_returns = log_prices.diff()
     volatilities = log_returns.rolling(window=length).std(ddof=1) * np.sqrt(252)
-    start_index = pd.Timestamp(start_date)
-    end_index = pd.Timestamp(end_date)
-    indices = (prices.index >= start_index) & (prices.index < end_index)
-    return volatilities[indices]
+    volatilities_aligned = volatilities.reindex(dates)
+    return volatilities_aligned
 
 
 def calc_log_return_std(date: datetime, length: int = 20) -> float:

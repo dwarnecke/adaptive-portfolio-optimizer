@@ -5,7 +5,7 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime
 
-from utils.dates import get_next_trading_date
+from utils.dates import get_next_date, list_dates
 
 VIX = yf.Ticker("^VIX")
 VIX3M = yf.Ticker("^VIX3M")
@@ -18,21 +18,16 @@ def calc_term_structures(start_date: datetime, end_date: datetime) -> pd.Series:
     :param end_date: End date for the range, exclusive
     :returns: Series of term differences (VIX3M - VIX) indexed by date
     """
+    dates = pd.to_datetime(list_dates(start_date, end_date))
     prices = VIX.history(start=start_date, end=end_date)["Close"].astype(float)
     prices3m = VIX3M.history(start=start_date, end=end_date)["Close"].astype(float)
-
     # Remove timezone to make dates timezone-naive
     prices.index = prices.index.tz_localize(None)
     prices3m.index = prices3m.index.tz_localize(None)
-
-    # Align indices to the same timezones and times
-    prices_daily = prices.groupby(prices.index.date).last()
-    prices3m_daily = prices3m.groupby(prices3m.index.date).last()
-    prices_daily.index = pd.to_datetime(prices_daily.index)
-    prices3m_daily.index = pd.to_datetime(prices3m_daily.index)
-    prices_daily, prices3m_daily = prices_daily.align(prices3m_daily, join="inner")
-    term_differences = prices3m_daily - prices_daily
-
+    # Reindex to trading dates and forward fill
+    prices_aligned = prices.reindex(dates).ffill()
+    prices3m_aligned = prices3m.reindex(dates).ffill()
+    term_differences = prices3m_aligned - prices_aligned
     return term_differences
 
 
@@ -54,7 +49,7 @@ def get_vix_close(date: datetime) -> float:
     :param date: Date for which to retrieve the VIX closing value.
     :returns: VIX closing value.
     """
-    next_date = get_next_trading_date(date)
+    next_date = get_next_date(date)
     data = VIX.history(start=date, end=next_date)
     # Remove timezone to make dates timezone-naive
     data.index = data.index.tz_localize(None)
@@ -68,7 +63,7 @@ def get_vix3m_close(date: datetime) -> float:
     :param date: Date for which to retrieve the VIX3M closing value.
     :returns: VIX3M closing value as a float.
     """
-    next_date = get_next_trading_date(date)
+    next_date = get_next_date(date)
     data = VIX3M.history(start=date, end=next_date)
     # Remove timezone to make dates timezone-naive
     data.index = data.index.tz_localize(None)

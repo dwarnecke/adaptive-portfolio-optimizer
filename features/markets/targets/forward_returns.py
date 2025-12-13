@@ -4,6 +4,7 @@ __email__ = "dylan.warnecke@gmail.com"
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from utils.dates import list_dates
 
 SPY = yf.Ticker("^GSPC")
 
@@ -16,15 +17,16 @@ def calc_forward_log_returns(start_date, end_date, length: int) -> pd.Series:
     :param forward_length: Number of trading days to look ahead for each return
     :returns: Series of forward log returns indexed by start-of-period date
     """
+    dates = pd.to_datetime(list_dates(start_date, end_date))
     prices = SPY.history(start=start_date, end=end_date)["Close"].astype(float)
     # Remove timezone to make dates timezone-naive
     prices.index = prices.index.tz_localize(None)
     log_prices = prices.apply(np.log)
     log_returns = log_prices.shift(-length) - log_prices
-    start_index = pd.to_datetime(start_date)
-    end_index = pd.to_datetime(end_date)
-    indices = (start_index <= prices.index) & (prices.index < end_index)
-    return log_returns[indices]
+    
+    # Reindex to trading dates
+    log_returns_aligned = log_returns.reindex(dates)
+    return log_returns_aligned
 
 
 def calc_forward_log_returns_5d(start_date, end_date) -> pd.Series:
