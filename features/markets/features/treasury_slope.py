@@ -3,7 +3,7 @@ __email__ = "dylan.warnecke@gmail.com"
 
 import pandas as pd
 from datetime import datetime
-from utils.dates import list_trading_dates
+from utils.dates import list_dates
 
 # FRED CSV URLs for 2Y and 10Y Treasury yields (daily, no API key required)
 FRED_2Y_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2"
@@ -33,13 +33,10 @@ def load_treasury_yields(start_date: datetime, end_date: datetime):
     """
     yields_2y = pd.read_csv(FRED_2Y_URL, parse_dates=["observation_date"])
     yields_10y = pd.read_csv(FRED_10Y_URL, parse_dates=["observation_date"])
-
     # Reindex to trading dates and forward-fill missing values
     yields_2y.index = pd.DatetimeIndex(yields_2y["observation_date"])
     yields_10y.index = pd.DatetimeIndex(yields_10y["observation_date"])
-    dates = list_trading_dates(start_date, end_date)
-    dates = pd.to_datetime(dates)
+    dates = pd.to_datetime(list_dates(start_date, end_date))
     yields_2y = yields_2y.reindex(dates).ffill()
     yields_10y = yields_10y.reindex(dates).ffill()
-
     return yields_2y, yields_10y

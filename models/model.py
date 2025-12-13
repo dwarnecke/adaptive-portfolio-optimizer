@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 
-class Model(nn.Module):
+class ForwardModel(nn.Module):
     """
     Transformer model to predict 20-day forward returns and volatility.
     """

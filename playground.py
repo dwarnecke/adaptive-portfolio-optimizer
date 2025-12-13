@@ -2,119 +2,129 @@ __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
 from datetime import datetime
+from pathlib import Path
 from features.markets.observations import ObservationsData
-from features.markets.regime import RegimeModel
-from features.markets.market import MarketData
+from features.markets.model import RegimeModel
+from models.trainer import main as train_forward_model
 from features.equities.equity import EquityData
-from features.features import FeaturesData
 from data.loader import load_fundamentals
 
-# Test ObservationsData
-print("Testing ObservationsData...")
-start = datetime(2020, 1, 1)
-end = datetime(2024, 1, 1)
-print(f"Creating ObservationsData from {start.date()} to {end.date()}...")
-observations = ObservationsData(start, end)
-print(f"ObservationsData created successfully!\n")
+# ========== TEST EQUITY DATA ==========
+print("=" * 60)
+print("TESTING EQUITY DATA")
+print("=" * 60)
 
-# Test RegimeModel
-print("Testing RegimeModel...")
-print("Creating and training RegimeModel with 3 states...")
-model = RegimeModel(states=3, data=observations.inputs)
-model.train(observations.inputs, max_iter=10, tol=1e-4)
-print("Model trained successfully!\n")
-
-# Save the model
-print("Saving regime model...")
-model.save("test_regime_model.pkl")
-print("Model saved!\n")
-
-# Test MarketData
-print("Testing MarketData...")
-print("Creating MarketData with observations and regime model...")
-market = MarketData(observations, "test_regime_model.pkl")
-print("MarketData created successfully!\n")
-
-# Display market info
-print(f"Market Features shape: {market.features.shape}")
-print(f"Market Feature columns: {list(market.features.columns)}")
-print()
-
-print(f"Market Targets shape: {market.targets.shape}")
-print(f"Market Target columns: {list(market.targets.columns)}")
-print()
-
-# Test EquityData
-print("Testing EquityData...")
-ticker = "AAPL"
-print(f"Loading fundamental data...")
+print("\nLoading fundamentals data...")
 fund_data = load_fundamentals()
-print(f"Creating EquityData for {ticker}...")
-equity = EquityData(ticker, fund_data)
-print(f"EquityData created successfully!\n")
+print("[OK] Fundamentals loaded!")
 
-print(f"Equity Features shape: {equity.features.shape}")
-print(f"Equity Feature columns: {list(equity.features.columns)}")
-print()
+# Test with AAPL
+test_ticker = "AAPL"
+print(f"\nTesting EquityData for {test_ticker}...")
 
-# Test FeaturesData
-print("Testing FeaturesData...")
-print(f"Combining equity and market features...")
-features = FeaturesData(equity, market)
-print(f"FeaturesData created successfully!\n")
+try:
+    equity_data = EquityData(test_ticker, fund_data)
+    print(f"[OK] EquityData created for {test_ticker}")
 
-print(f"Combined Features shape: {features._features.shape}")
-print(f"Combined Feature columns: {list(features._features.columns)}")
-print()
+    print(f"\nData shape: {equity_data.data.shape}")
+    print(f"Targets shape: {equity_data.targets.shape}")
 
-# Test NA indicators
-print("Testing NA indicator features...")
-equity_features = equity.features
-indicator_cols = [col for col in equity_features.columns if col.endswith('_NA')]
-print(f"Found {len(indicator_cols)} NA indicator columns: {indicator_cols}")
-print()
+    print(f"\nData columns ({len(equity_data.data.columns)}):")
+    print(f"  {list(equity_data.data.columns)}")
 
-# Check if non-indicator features have any NAs
-non_indicator_cols = [col for col in equity_features.columns if not col.endswith('_NA')]
-print(f"Checking {len(non_indicator_cols)} non-indicator features for NA values...")
-na_counts = equity_features[non_indicator_cols].isna().sum()
-features_with_na = na_counts[na_counts > 0]
-if len(features_with_na) > 0:
-    print(f"WARNING: Found NA values in non-indicator features:")
-    print(features_with_na)
+    print(f"\nData date range:")
+    print(f"  First: {equity_data.data.index[0]}")
+    print(f"  Last: {equity_data.data.index[-1]}")
+
+    print(f"\nSample data (first 5 rows):")
+    print(equity_data.data.head())
+
+    print(f"\nSample targets (first 5 rows):")
+    print(equity_data.targets.head())
+
+    print(f"\nData statistics:")
+    print(equity_data.data.describe())
+
+    # Check for NaN values
+    nan_counts = equity_data.data.isna().sum()
+    if nan_counts.sum() > 0:
+        print(f"\n[WARNING] NaN values found in features:")
+        print(nan_counts[nan_counts > 0])
+    else:
+        print(f"\n[OK] No NaN values in features")
+
+    target_nans = equity_data.targets.isna().sum()
+    if target_nans > 0:
+        print(f"[WARNING] {target_nans} NaN values in targets")
+    else:
+        print(f"[OK] No NaN values in targets")
+
+    print("\n" + "=" * 60)
+    print("EQUITY DATA TEST COMPLETE")
+    print("=" * 60)
+
+except Exception as e:
+    print(f"\n[ERROR] Failed to create EquityData: {e}")
+    import traceback
+
+    traceback.print_exc()
+    print("\n" + "=" * 60)
+    print("EQUITY DATA TEST FAILED")
+    print("=" * 60)
+    exit(1)
+
+# ========== TRAIN AND SAVE REGIME MODEL ==========
+print("\n" + "=" * 60)
+print("STEP 1: TRAINING REGIME MODEL")
+print("=" * 60)
+
+# Use full historical data for training regime model (2010-2020)
+train_start = datetime(2010, 1, 1)
+train_end = datetime(2020, 12, 31)
+print(f"\nTraining period: {train_start.date()} to {train_end.date()}")
+
+# Check if regime model already exists
+model_dir = Path("models/checkpoints")
+model_path = model_dir / "regime_model_3states.pkl"
+
+if model_path.exists():
+    print("\nRegime model already exists, skipping training...")
+    print(f"Loading from: {model_path}")
+    model = RegimeModel.load(model_path)
+    print("[OK] Model loaded!")
 else:
-    print("✓ All non-indicator features have no NA values!")
-print()
+    print("\nCreating ObservationsData for training...")
+    observations = ObservationsData(train_start, train_end)
+    print(f"[OK] Observations shape: {observations.inputs.shape}")
+    print(f"  Features: {list(observations.inputs.columns)}")
 
-# Verify indicator features work correctly
-print("Verifying NA indicators...")
-for indicator_col in indicator_cols:
-    base_col = indicator_col.replace('_NA', '')
-    if base_col in equity_features.columns:
-        # Check that when indicator is 1, original was 0 (filled)
-        indicator_is_one = equity_features[indicator_col] == 1
-        base_is_zero = equity_features[base_col] == 0
-        if (indicator_is_one & ~base_is_zero).any():
-            print(f"WARNING: {base_col} has non-zero values when {indicator_col}=1")
-        else:
-            print(f"✓ {base_col} correctly zeroed when NA (indicator: {indicator_col})")
-print()
+    print("\nInitializing RegimeModel with 3 states...")
+    model = RegimeModel(states=3, data=observations.inputs)
 
-# Test slice_windows
-print("Testing slice_windows...")
-window_start = datetime(2023, 1, 1)
-window_end = datetime(2023, 6, 1)
-window_length = 60
-print(f"Creating windows from {window_start.date()} to {window_end.date()} with length {window_length}...")
-windows = features.slice_windows(window_start, window_end, window_length)
-print(f"Windows shape: {windows.shape}")
-print(f"Expected shape: (dates, {window_length}, {features._features.shape[1]})")
-print()
+    print("\nTraining HMM with Baum-Welch algorithm...")
+    print("  max_iter=100, tol=1e-6 for production-quality model")
+    model.train(observations.inputs, max_iter=100, tol=1e-6)
+    print("[OK] Model trained successfully!")
 
-# Verify tensor properties
-print(f"Tensor dtype: {windows.dtype}")
-print(f"Tensor has NaN: {windows.isnan().any().item()}")
-print(f"Tensor has Inf: {windows.isinf().any().item()}")
-print()
+    # Save to models/checkpoints directory
+    model_dir.mkdir(parents=True, exist_ok=True)
+    print(f"\nSaving regime model to: {model_path}")
+    model.save(model_path)
+    print("[OK] Model saved!")
 
-print("All tests completed successfully!")
+print("\n" + "=" * 60)
+print("REGIME MODEL TRAINING COMPLETE")
+print("=" * 60)
+print(f"Model saved to: {model_path.absolute()}")
+
+# ========== TRAIN FORWARD MODEL ==========
+print("\n" + "=" * 60)
+print("STEP 2: TRAINING FORWARD MODEL")
+print("=" * 60)
+print("\nStarting forward model training...")
+
+train_forward_model()
+
+print("\n" + "=" * 60)
+print("ALL TRAINING COMPLETE")
+print("=" * 60)

@@ -4,6 +4,7 @@ __email__ = "dylan.warnecke@gmail.com"
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from utils.dates import list_dates
 
 SPY = yf.Ticker("^GSPC")
 
@@ -16,6 +17,8 @@ def calc_forward_log_return_stds(start_date, end_date, length: int) -> pd.Series
     :param length: Number of trading days to look ahead for each volatility calculation
     :returns: Series of forward annualized volatilities indexed by start date
     """
+    dates = pd.to_datetime(list_dates(start_date, end_date))
+
     # Extend end date to get enough forward data
     extended_end = end_date + pd.Timedelta(days=length * 2)
     prices = SPY.history(start=start_date, end=extended_end)["Close"].astype(float)
@@ -26,10 +29,10 @@ def calc_forward_log_return_stds(start_date, end_date, length: int) -> pd.Series
     # Calculate forward-looking volatilities using rolling window shifted backward
     volatilities = log_returns.rolling(window=length).std(ddof=1) * np.sqrt(252)
     forward_volatilities = volatilities.shift(-length)
-    start_index = pd.to_datetime(start_date)
-    end_index = pd.to_datetime(end_date)
-    indices = (start_index <= prices.index) & (prices.index < end_index)
-    return forward_volatilities[indices]
+    
+    # Reindex to trading dates
+    forward_volatilities_aligned = forward_volatilities.reindex(dates)
+    return forward_volatilities_aligned
 
 
 def calc_forward_log_return_stds_5d(start_date, end_date) -> pd.Series:

@@ -41,3 +41,6 @@ pip-wheel-metadata/
 
 # Data caches / downloads (repo-specific)
 data/simfin/**
+
+# Preprocessed feature data (too large for git, regenerate with preprocess.py)
+features/data/*.pkl

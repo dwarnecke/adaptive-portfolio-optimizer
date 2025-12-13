@@ -20,7 +20,7 @@ def get_trailing_earnings(
     """
     # Copy and prepare the data once
     data = data.copy()
-    data["Local Publish Date"] = data["Publish Date"].apply(cast_str_date)
+    data["Local Publish Date"] = pd.to_datetime(data["Publish Date"].apply(cast_str_date))
     data = data.sort_values(by="Local Publish Date", ascending=True)
 
     # Calculate rolling 4-quarter earnings sum

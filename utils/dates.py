@@ -10,44 +10,74 @@ HEADERS = {"User-Agent": "Dylan Warnecke <dylan.warnecke@gmail.com>"}
 
 SPY = yf.Ticker("^GSPC")
 
+# Load all historical trading dates once
+data = SPY.history(period="max")
+open_dates = [date.to_pydatetime().replace(tzinfo=None) for date in data.index]
 
-def get_next_trading_date(date: datetime) -> datetime:
-    """
-    Get the next trading date after the given date.
-    :param date: Datetime to find the next trading date after
-    :returns: Next trading datetime
-    """
-    start_date = date + timedelta(days=1)
-    end_date = date + timedelta(days=30)
-    dates = list_trading_dates(start_date, end_date)
-    return dates[0]
+# Build constant dictionaries for O(1) lookups
+_NEXT_TRADING_DATE = {}
+_LAST_TRADING_DATE = {}
+
+# Populate next trading date mapping
+for i in range(len(open_dates) - 1):
+    current_date = open_dates[i]
+    next_date = open_dates[i + 1]
+    # Map all dates from current to next to the next trading date
+    check_date = current_date
+    while check_date < next_date:
+        _NEXT_TRADING_DATE[check_date] = next_date
+        check_date += timedelta(days=1)
+
+# Populate last trading date mapping
+for i in range(1, len(open_dates)):
+    current_date = open_dates[i]
+    prev_date = open_dates[i - 1]
+    # Map all dates from previous to current to current trading date
+    check_date = prev_date + timedelta(days=1)
+    while check_date <= current_date:
+        _LAST_TRADING_DATE[check_date] = current_date
+        check_date += timedelta(days=1)
+
+# Add mapping for the first trading date (map to itself)
+if open_dates:
+    first_date = open_dates[0]
+    _LAST_TRADING_DATE[first_date] = first_date
 
 
-def get_last_trading_date(date: datetime) -> datetime:
-    """
-    Get the last trading date at or before the given date.
-    :param date: Datetime to find the last trading date before
-    :returns: Last trading datetime
-    """
-    start_date = date - timedelta(days=30)
-    end_date = date + timedelta(days=1)
-    dates = list_trading_dates(start_date, end_date)
-    return dates[-1]
-
-
-def list_trading_dates(start_date: datetime, end_date: datetime) -> list[datetime]:
+def list_dates(start_date: datetime, end_date: datetime) -> list[datetime]:
     """
     List all trading dates between start and end date.
     :param start_date: Start datetime for the range, inclusive
     :param end_date: End datetime for the range, exclusive
     :returns: List of timezone-naive datetime trading dates
     """
-    # Ensure datetimes are naive for yfinance
-    start_date = remove_timezone(start_date)
-    end_date = remove_timezone(end_date)
-    data = SPY.history(start=start_date, end=end_date)
-    dates = [remove_timezone(date.to_pydatetime()) for date in data.index]
+    dates = []
+    current_date = get_last_date(start_date)
+    if current_date == start_date:
+        dates.append(current_date)
+    current_date = get_next_date(current_date + timedelta(days=1))
+    while current_date < end_date:
+        dates.append(current_date)
+        current_date = get_next_date(current_date + timedelta(days=1))
     return dates
+
+
+def get_next_date(date: datetime) -> datetime:
+    """
+    Get the next trading date after the given date.
+    :param date: Datetime to find the next trading date after
+    :returns: Next trading datetime
+    """
+    return _NEXT_TRADING_DATE[date]
+
+
+def get_last_date(date: datetime) -> datetime:
+    """
+    Get the last trading date at or before the given date.
+    :param date: Datetime to find the last trading date before
+    :returns: Last trading datetime
+    """
+    return _LAST_TRADING_DATE[date]
 
 
 def cast_str_dates(date_strs: Series) -> Series:

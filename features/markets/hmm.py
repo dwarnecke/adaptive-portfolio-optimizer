@@ -44,21 +44,20 @@ class HiddenMarkovModel:
                 break
             prev_loglik = loglik
 
-    def predict_transition_proba(self, data: pd.DataFrame) -> np.ndarray:
+    def calc_state_proba(self, data: pd.DataFrame) -> np.ndarray:
         """
-        Predict the transition probabilities of the next hidden state sequence.
+        Calculate state probabilities for all timesteps in the observation data.
         :param data: DataFrame of normalized features.
-        :returns: Probabilities for each hidden state at the next time, shape (n_states,)
+        :returns: Array of shape (T, n_states) with state probabilities for each timestep
         """
         logB = self._compute_log_emission_probs(data)
         log_alpha, log_scale = self._log_forward(logB)
         log_beta = self._log_backward(logB, log_scale)
         log_gamma = log_alpha + log_beta
-        log_gamma -= np.logaddexp.reduce(log_gamma, axis=1, keepdims=True)
+        log_gamma -= log_gamma.max(axis=1, keepdims=True)  # Numerical stability
         gamma = np.exp(log_gamma)
-        state_proba = gamma[-1]
-        state_proba = state_proba @ self.A
-        return state_proba
+        gamma = gamma / gamma.sum(axis=1, keepdims=True)
+        return gamma
 
     def save(self, filepath: str | Path) -> None:
         """
@@ -90,7 +89,7 @@ class HiddenMarkovModel:
         filepath = Path(filepath)
         with open(filepath, "rb") as f:
             model_data = pickle.load(f)
-        
+
         # File contains all necessary parameters for the HMM
         hmm = cls(model_data["num_states"], model_data["num_features"])
         hmm.pi = model_data["pi"]
@@ -141,7 +140,9 @@ class HiddenMarkovModel:
         covs += np.eye(features) * 1e-6
         return covs
 
-    def _log_gaussian_prob(self, x: np.ndarray, mean: np.ndarray, cov: np.ndarray) -> float:
+    def _log_gaussian_prob(
+        self, x: np.ndarray, mean: np.ndarray, cov: np.ndarray
+    ) -> float:
         """
         Compute the log-probability of x under a multivariate normal distribution.
         :param x: Observation vector.

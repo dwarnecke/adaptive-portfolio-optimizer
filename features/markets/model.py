@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from features.markets.hmm import HiddenMarkovModel
-from utils.dates import list_trading_dates
+from utils.dates import list_dates
 
 
 class RegimeModel:
@@ -55,7 +55,7 @@ class RegimeModel:
         """
         last_date = pd.to_datetime(self._data.index[-1])
         end_date = pd.to_datetime(date)
-        trading_days = list_trading_dates(last_date, end_date)
+        trading_days = list_dates(last_date, end_date)
 
         # Skip the first date if it is the last date in the data
         if trading_days and trading_days[0] == last_date:
@@ -67,6 +67,20 @@ class RegimeModel:
             state_proba = state_proba @ self.hmm.A
 
         return state_proba
+
+    def calc_regime_proba(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate regime probabilities for all dates in the given data.
+        :param data: DataFrame with observation features to compute probabilities for
+        :returns: DataFrame with state probabilities for each date
+        """
+        normalized_data = self._normalize_data(data)
+        state_probs = self.hmm.calc_state_proba(normalized_data)
+        prob_columns = [f"regime_{i}_prob" for i in range(self.num_states)]
+        state_prob_df = pd.DataFrame(
+            state_probs, index=data.index, columns=prob_columns
+        )
+        return state_prob_df
 
     def extend(self, new_data: pd.DataFrame) -> None:
         """
@@ -94,8 +108,8 @@ class RegimeModel:
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
-        # Save the HMM model to a separate file
-        hmm_filepath = filepath.with_suffix(".hmm")
+        # Save the HMM model to a separate file with _hmm suffix
+        hmm_filepath = filepath.parent / f"{filepath.stem}_hmm.pkl"
         self.hmm.save(hmm_filepath)
 
         # Save the regime model metadata and scaling parameters
