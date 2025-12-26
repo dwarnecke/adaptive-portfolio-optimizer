@@ -7,8 +7,6 @@ import warnings
 import sys
 import os
 
-from utils.keys import get_api_key
-
 # Suppress SimFin logging messages unless they are critical
 logging.getLogger("simfin").setLevel(logging.CRITICAL)
 
@@ -20,13 +18,13 @@ def load_fundamentals():
     """
     Load all SimFin fundamentals data for immediate use.
     """
-    sf.set_api_key(get_api_key("simfin"))
-    sf.set_data_dir("data/simfin/")
+    sf.set_api_key(os.environ["SIMFIN_KEY"])
+    sf.set_data_dir("data/raw/simfin/")
 
     # Suppress all simfin print statements
     old_stdout = sys.stdout
-    sys.stdout = open(os.devnull, 'w')
-    
+    sys.stdout = open(os.devnull, "w")
+
     try:
         # Load the fundamentals data from SimFin
         incomes = sf.load("income", market="us", variant="quarterly")

@@ -39,8 +39,8 @@ pip-wheel-metadata/
 .mypy_cache/
 .pyright/
 
-# Data caches / downloads (repo-specific)
-data/simfin/**
-
-# Preprocessed feature data (too large for git, regenerate with preprocess.py)
-features/data/*.pkl
+# Data and model artifacts (repo-specific)
+data/raw/simfin/**
+data/processed/*.pkl
+models/checkpoints/*.pt
+models/checkpoints/*.pkl

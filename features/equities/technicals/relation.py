@@ -25,7 +25,7 @@ def calc_relative_return(data: DataFrame, length: int) -> Series:
     end_date = data.index.max()
     market_closes = SPY.history(start=start_date, end=end_date)["Close"]
     # Remove timezone to make dates timezone-naive
-    market_closes.index = market_closes.index.tz_localize(None)
+    market_closes.index = pd.DatetimeIndex(market_closes.index).tz_localize(None)
     market_log_close = np.log(market_closes + 1e-8)
 
     # Calculate stock returns as the difference in log prices
@@ -52,7 +52,7 @@ def calc_rolling_beta(data: DataFrame, length: int) -> Series:
     start_date = data.index.min()
     end_date = data.index.max()
     market_closes = SPY.history(start=start_date, end=end_date)["Close"]
-    market_closes.index = market_closes.index.tz_localize(None)
+    market_closes.index = pd.DatetimeIndex(market_closes.index).tz_localize(None)
     market_log_close = np.log(market_closes + 1e-8)
 
     # Calculate rolling beta over the specified length

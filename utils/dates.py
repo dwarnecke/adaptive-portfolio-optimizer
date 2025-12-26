@@ -64,9 +64,9 @@ def list_dates(start_date: datetime, end_date: datetime) -> list[datetime]:
 
 def get_next_date(date: datetime) -> datetime:
     """
-    Get the next trading date after the given date.
+    Get the next trading date another date, exclusive.
     :param date: Datetime to find the next trading date after
-    :returns: Next trading datetime
+    :returns: Next trading datetime, exclusive
     """
     return _NEXT_TRADING_DATE[date]
 
@@ -75,7 +75,7 @@ def get_last_date(date: datetime) -> datetime:
     """
     Get the last trading date at or before the given date.
     :param date: Datetime to find the last trading date before
-    :returns: Last trading datetime
+    :returns: Last trading datetime, inclusive
     """
     return _LAST_TRADING_DATE[date]
 

@@ -3,9 +3,10 @@ __email__ = "dylan.warnecke@gmail.com"
 
 import numpy as np
 import pandas as pd
+from pandas import DataFrame, DatetimeIndex
 
 from features.markets.observations import ObservationsData
-from features.markets.model import RegimeModel
+from features.markets.regime_model import RegimeModel
 
 
 class MarketData:
@@ -23,7 +24,7 @@ class MarketData:
         self._regime = RegimeModel.load(model_path)
         self.data = self._aggregate()
 
-    def _aggregate(self) -> pd.DataFrame:
+    def _aggregate(self) -> DataFrame:
         """
         Aggregate observation features with regime state probabilities.
         :returns: DataFrame with all features including regime probabilities
@@ -32,3 +33,11 @@ class MarketData:
         state_probs = self._regime.calc_regime_proba(observation_inputs)
         combined = pd.concat([observation_inputs, state_probs], axis=1)
         return combined
+    
+    @property
+    def index(self) -> DatetimeIndex:
+        """
+        Get the index dates of the market data.
+        :return: DatetimeIndex of the data DataFrame
+        """
+        return self.data.index

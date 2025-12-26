@@ -1,16 +1,21 @@
 __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
-from datetime import datetime
-
 from features.dataset import FeaturesDataset
 
-
 if __name__ == "__main__":
-    dataset = FeaturesDataset(
-        path="models/checkpoints/regime_model_3states.pkl",
-        start_date=datetime(2010, 1, 1),
-        end_date=datetime(2020, 1, 1),
+    print("\nLoading training dataset...")
+    dataset = FeaturesDataset.load(
+        directory="data/processed", filename="train_dataset.pkl"
     )
-    dataset.save(directory="features/data", filename="train_dataset.pkl")
-    print(f"Dataset saved successfully with {len(dataset)} samples")
+
+    print(f"\nDataset loaded successfully!")
+    print(f"Number of tickers: {len(dataset.tickers)}")
+    print(f"Total samples: {len(dataset)}")
+    print(f"\nFirst 10 tickers: {list(dataset.tickers.values())[:10]}")
+
+    # Show sample information
+    if len(dataset) > 0:
+        x, y = dataset[0]
+        print(f"\nSample shape: {x.shape}")
+        print(f"Sample target: {y}")

@@ -3,7 +3,6 @@ __email__ = "dylan.warnecke@gmail.com"
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 from features.equities.technicals.trend import (
     calc_rate_of_change,
@@ -13,7 +12,7 @@ from features.equities.technicals.volatility import (
     calc_average_true_range,
     calc_max_drawdown,
 )
-from features.equities.technicals.position import calc_zscore
+from features.equities.technicals.score import calc_zscore
 from features.equities.technicals.relation import (
     calc_relative_return,
     calc_rolling_beta,
@@ -44,7 +43,7 @@ class TechnicalsData:
         Download historical stock data.
         """
         data = download_data(self._TICKER)
-        
+
         # Skip processing if no data was downloaded
         if data.empty:
             self._data = pd.DataFrame()
@@ -62,8 +61,7 @@ class TechnicalsData:
         """
         Calculate all technical indicators and add them to the data DataFrame.
         """
-        # Skip processing if no data is available
-        if self._data.empty:
+        if len(self._data) == 0:
             self._features = pd.DataFrame()
             return
         self._features = pd.DataFrame(index=self._data.index)
@@ -143,23 +141,22 @@ class TechnicalsData:
     @property
     def data(self) -> pd.DataFrame:
         """
-        Get the technical data DataFrame.
-        :return: DataFrame copy containing technical data
+        Get the loaded technical data for the ticker.
+        :return: DataFrame containing loaded technical data
         """
         return self._data.copy()
-
+    
     @property
     def features(self) -> pd.DataFrame:
         """
-        Get the technical features DataFrame.
-        :return: DataFrame copy containing technical features
+        Get the calculated features DataFrame.
+        :return: DataFrame of calculated technical features
         """
         return self._features.copy()
 
-    @property
-    def empty(self) -> bool:
+    def __len__(self) -> bool:
         """
-        Check if the technical data is empty.
-        :return: True if data is empty, False otherwise
+        Get the number of data points available.
+        :return: Number of index dates in the data DataFrame
         """
-        return self._data.empty
+        return len(self._features)
