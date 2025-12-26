@@ -3,6 +3,15 @@
 This repo uses **reStructuredText (rST) docstrings** for all Python code and enforces a strict file layout.
 Copilot must follow these rules when generating or completing code.
 
+## General Principle
+**Always match the existing coding style in the repository.** When generating code, examine similar files in the codebase and mirror their:
+- Naming conventions (variables, functions, classes)
+- Code organization patterns
+- Comment style and density
+- Line length and formatting preferences
+
+If the existing code deviates from these instructions, **follow the existing code style**.
+
 ---
 
 ## Top‑of‑file Order (no exceptions)

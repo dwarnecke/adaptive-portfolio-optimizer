@@ -27,9 +27,6 @@ class ForwardModel(nn.Module):
         :param dropout: Dropout probability for regularization
         """
         super().__init__()
-        assert (
-            units_hidden % num_heads == 0
-        ), "units_hidden must be divisible by num_heads"
 
         # Register the normalization parameters as buffers
         self.register_buffer("_mean", torch.zeros(1, 1, units_in))
@@ -50,16 +47,30 @@ class ForwardModel(nn.Module):
         self.input_layer = nn.Linear(units_in, units_hidden)
         self.output_layer = nn.Linear(units_hidden, 2)
 
+    def initialize(self, x):
+        """
+        Initialize normalization parameters based on input data.
+        :param x: Input tensor of shape (num_samples, sequence_len, units_in)
+        """
+        means = x.mean(dim=(0, 1), keepdim=True)
+        stds = x.std(dim=(0, 1), keepdim=True)
+        stds = torch.clamp(stds, min=1e-8)
+
+        # Copy to buffers (buffers already on correct device from model.to())
+        self._mean.copy_(means)
+        self._std.copy_(stds)
+        self._initialized.fill_(True)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through the model.
         :param x: Input tensor of shape (batch_size, sequence_len, units_in)
-        :return: Output tensor of shape (batch_size, 2) with predicted return and volatility
+        :return: Output tensor of shape (batch_size, 2) with return and volatility
         """
         x_norm = self._normalize(x)
         y = self.input_layer(x_norm)
 
-        # Use causal attention mask to prevent attention to future time steps
+        # Causal attention mask prevents attention to future time steps
         _, length, _ = y.shape
         mask = torch.triu(
             torch.ones(length, length, dtype=torch.bool, device=y.device),
@@ -74,20 +85,6 @@ class ForwardModel(nn.Module):
         sigma = nn.functional.softplus(y[:, 1])
 
         return torch.stack((mu, sigma), dim=1)
-
-    def initialize(self, x):
-        """
-        Initialize normalization parameters based on input data.
-        :param x: Input tensor of shape (num_samples, sequence_len, units_in)
-        """
-        means = x.mean(dim=(0, 1), keepdim=True)
-        stds = x.std(dim=(0, 1), keepdim=True)
-        stds = torch.clamp(stds, min=1e-8)
-
-        # Copy to buffers (buffers already on correct device from model.to())
-        self._mean.copy_(means)
-        self._std.copy_(stds)
-        self._initialized.fill_(True)
 
     def _normalize(self, x: torch.Tensor) -> torch.Tensor:
         """

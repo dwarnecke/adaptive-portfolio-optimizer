@@ -1,6 +1,5 @@
 ipython
 jupyter
-logging
 lxml
 matplotlib
 numpy

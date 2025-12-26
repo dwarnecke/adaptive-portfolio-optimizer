@@ -34,15 +34,10 @@ def download_data(ticker: str) -> DataFrame:
     :param ticker: Stock ticker symbol to download
     :return: DataFrame containing historical stock data
     """
-    data = yf.download(ticker, period="max", progress=False, auto_adjust=True)
-
-    # Skip processing if no data was downloaded
+    data = yf.download(str(ticker), period="max", progress=False, auto_adjust=True)
     if data.empty:
-        return pd.DataFrame
-
-    # Reindex multi-index columns if present
+        return pd.DataFrame()
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
-
     data.index = data.index.tz_localize(None)
     return data

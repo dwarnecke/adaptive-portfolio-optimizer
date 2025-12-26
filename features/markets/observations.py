@@ -4,12 +4,12 @@ __email__ = "dylan.warnecke@gmail.com"
 import pandas as pd
 from datetime import datetime
 
-from features.markets.features.vix_term import calc_term_structures
-from features.markets.features.index_momentum import calc_log_returns_20d
-from features.markets.features.index_volatility import calc_log_return_stds_20d
-from features.markets.features.treasury_slope import calc_2y10y_slopes
-from features.markets.targets.forward_returns import calc_forward_log_returns_20d
-from features.markets.targets.forward_volatility import calc_forward_log_return_stds_20d
+from features.markets.indicators.vix_term import calc_term_structures
+from features.markets.indicators.index_momentum import calc_log_returns_20d
+from features.markets.indicators.index_volatility import calc_log_return_stds_20d
+from features.markets.indicators.treasury_slope import calc_2y10y_slopes
+from features.markets.forwards.forward_returns import calc_forward_log_returns_20d
+from features.markets.forwards.forward_volatility import calc_forward_log_return_stds_20d
 from utils.dates import list_dates
 
 

@@ -144,8 +144,8 @@ class RegimeModel:
         model._scaling_stds = regime_data["scaling_stds"]
         model._data = regime_data["data"]
 
-        # Load the HMM model
-        hmm_filepath = Path(regime_data["hmm_filepath"])
+        # Load the HMM model from the same directory as the model file
+        hmm_filepath = path.parent / f"{path.stem}_hmm.pkl"
         model.hmm = HiddenMarkovModel.load(hmm_filepath)
 
         return model

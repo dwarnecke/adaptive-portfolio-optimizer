@@ -3,7 +3,6 @@ __email__ = "dylan.warnecke@gmail.com"
 
 import numpy as np
 import pandas as pd
-import simfin as sf
 import yfinance as yf
 from datetime import datetime, timedelta
 
@@ -16,11 +15,6 @@ from utils.dates import (
     get_last_date,
     list_dates,
 )
-from utils.keys import get_api_key
-
-# Set SimFin configuration
-sf.set_api_key(get_api_key("simfin"))
-sf.set_data_dir("data/simfin/")
 
 
 class FundamentalsData:
@@ -64,8 +58,8 @@ class FundamentalsData:
         Calculate features for the ticker for faster access.
         :param dates: Dates to calculate features for, default None calculates all
         """
-        # Skip calculating features if there are no dates
-        if self.empty:
+        # Skip calculating features if there are no dates available
+        if len(self._dates) == 0 or self._min_date >= datetime(2100, 1, 1):
             self._features = pd.DataFrame()
             return
 
@@ -234,10 +228,10 @@ class FundamentalsData:
         return self._features.loc[date, "MC"]
 
     @property
-    def data(self) -> dict:
+    def data(self) -> pd.DataFrame:
         """
-        Get the loaded fundamentals data dictionary.
-        :return: Dictionary containing fundamentals data DataFrames
+        Get the loaded fundamental data for the ticker.
+        :return: Dictionary of DataFrames containing loaded fundamental data
         """
         return self._data.copy()
 
@@ -252,10 +246,9 @@ class FundamentalsData:
         features = features.drop(columns=["MC"])
         return features
 
-    @property
-    def empty(self) -> bool:
+    def __len__(self) -> int:
         """
-        Check if the fundamentals data is empty.
-        :return: True if no fundamental data is available, False otherwise
+        Get the number of available feature dates.
+        :return: Number of index dates in the features DataFrame
         """
-        return self._min_date.year > 2099
+        return len(self._features)

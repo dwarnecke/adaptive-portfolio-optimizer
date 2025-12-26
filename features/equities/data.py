@@ -1,9 +1,10 @@
 __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
+import datetime
 import numpy as np
 import pandas as pd
-from pandas import DataFrame
+from pandas import DataFrame, DatetimeIndex
 
 from features.equities.fundamentals.fundamentals import FundamentalsData
 from features.equities.technicals.technicals import TechnicalsData
@@ -20,12 +21,11 @@ class EquityData:
         :param ticker: Stock ticker symbol
         :param data: Dictionary containing loaded fundamentals data
         """
-        self._TICKER = ticker
-        self._fundamentals = FundamentalsData(ticker, data)
-        self._technicals = TechnicalsData(ticker)
-
-        # Skip processing if either technical or fundamental data is empty
-        if self._technicals.empty or self._fundamentals.empty:
+        self.TICKER = ticker
+        self.fundamentals = FundamentalsData(ticker, data)
+        self.technicals = TechnicalsData(ticker)
+        
+        if len(self.technicals) == 0 or len(self.fundamentals) == 0:
             self.data = pd.DataFrame()
             self.targets = pd.DataFrame()
             return
@@ -33,6 +33,30 @@ class EquityData:
         data, targets = self._calculate()
         self.data = data
         self.targets = targets
+
+    def get_open(self, date: datetime) -> float:
+        """
+        Get the opening price for the equity on a given date.
+        :param date: Date to get the opening price as of the open
+        :return: Opening price on the given date
+        """
+        return self.data["Open"].loc[date]
+    
+    def get_close(self, date: datetime) -> float:
+        """
+        Get the closing price for the equity on a given date.
+        :param date: Date to get the closing price as of the close
+        :return: Closing price on the given date
+        """
+        return self.data["Close"].loc[date]
+    
+    def get_return(self, date: datetime) -> float:
+        """
+        Get the return for the equity on a given date.
+        :param date: Date to get the return for
+        :return: Return on the given date
+        """
+        return self.targets.loc[date]
 
     def _calculate(self) -> tuple[DataFrame, DataFrame]:
         """
@@ -53,8 +77,8 @@ class EquityData:
         Calculates input data from technical and fundamental data.
         :returns: DataFrame of combined features
         """
-        tech_features = self._technicals.features
-        fund_features = self._fundamentals.features
+        tech_features = self.technicals._features
+        fund_features = self.fundamentals.features
         data = tech_features.join(fund_features, how="inner")
         return data
 
@@ -63,18 +87,25 @@ class EquityData:
         Calculates 20-day log returns as targets from technical data.
         :returns: DataFrame of target variables
         """
-        data = self._technicals.data
-        if data.empty:
+        data = self.technicals._data
+        if len(data) == 0:
             return pd.DataFrame()
         closes = data["Close"]
         targets = np.log(closes.shift(-20) / closes)
         targets = targets.dropna()
         return targets
 
+    def __len__(self) -> bool:
+        """
+        Get the number of data points available.
+        :return: Number of index dates in the data DataFrame
+        """
+        return len(self.data)
+    
     @property
-    def empty(self) -> bool:
+    def index(self) -> DatetimeIndex:
         """
-        Check if the equity data is empty.
-        :return: True if no data is available, False otherwise
+        Get the index dates of the equity data.
+        :return: DatetimeIndex of the data DataFrame
         """
-        return self.data.empty
+        return self.data.index

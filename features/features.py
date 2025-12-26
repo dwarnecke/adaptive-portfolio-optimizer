@@ -3,63 +3,71 @@ __email__ = "dylan.warnecke@gmail.com"
 
 import torch
 import numpy as np
-from datetime import timedelta
+from datetime import datetime
 
-from features.equities.equity import EquityData
-from features.markets.market import MarketData
+from features.equities.features import EquityFeatures
+from features.markets.features import MarketFeatures
 
 
 class FeaturesData:
     """
-    Class to hold calculated features for a particular equity.
+    Class to combine equity and market features with targets for training.
     """
 
-    def __init__(self, equity: EquityData, market: MarketData, length: int = 60):
+    def __init__(
+        self,
+        equity: EquityFeatures,
+        market: MarketFeatures,
+    ):
         """
-        Initialize the features data for a given equity and market.
-        :param equity: EquityData object containing equity data
-        :param market: MarketData object containing market data
-        :param length: Length of feature windows to aggregate, default 60
+        Initialize combined features data with targets.
+        :param equity: EquityFeatures object with equity features and targets
+        :param market: MarketFeatures object with market features
         """
-        # Only use dates that have both features and targets
-        data = equity.data.join(market.data, how="inner")
-        dates = data.index.intersection(equity.targets.index)
-        data = data.loc[dates]
-        index = data.index
+        # Find dates that exist in both feature sets
+        equity_dates = set(equity.dates)
+        market_dates = set(market.dates)
+        index_dates = equity_dates & market_dates
+        index_dates = sorted(index_dates)  # Keep chronological order
 
-        # Feature windows collect a rolling length of data for each date
-        windows, returns = [], []
-        if len(index) <= length:
-            # Not enough data, create empty tensors
-            x = torch.tensor([], dtype=torch.float32)
-            self.x = x.reshape(0, length, data.shape[1])
+        # Build tensors only for common dates
+        windows, targets, dates = [], [], []
+        for date in index_dates:
+            equity_window = equity[date]
+            market_window = market[date]
+            if equity_window is None or market_window is None:
+                continue
+            combined = torch.cat([equity_window, market_window], dim=-1)
+            index = np.where(equity.dates == date)[0][0]
+            target = equity.y[index]
+            windows.append(combined)
+            targets.append(target)
+            dates.append(date)
+
+        if not windows:
+            self.x = torch.tensor([], dtype=torch.float32).reshape(0, 0, 0)
             self.y = torch.tensor([], dtype=torch.float32)
-            return
+            self.dates = np.array([])
 
-        # Calculate windows and corresponding targets
-        date1, date2 = index[length], index[-1] + timedelta(days=1)
-        dates = index[(date1 <= index) & (index < date2)]
-        for date in dates:
-            if date in equity.targets.index:
-                date_data = data[data.index <= date]
-                window = date_data.tail(length).values
-                target = equity.targets.loc[date]
-                # Do not use incomplete windows as features
-                if len(window) != length:
-                    continue
-                windows.append(window.astype(float))
-                returns.append(target)
+        self.x = torch.stack(windows)
+        self.y = torch.stack(targets)
+        self.dates = np.array(dates)
 
-        # Create empty tensors if no windows were created
-        if len(windows) == 0:
-            x = torch.tensor([], dtype=torch.float32)
-            self.x = x.reshape(0, length, data.shape[1])
-            self.y = torch.tensor([], dtype=torch.float32)
-            return
-
-        self.x = torch.tensor(np.array(windows), dtype=torch.float32)
-        self.y = torch.tensor(np.array(returns), dtype=torch.float32)
-        self.dates = dates
+    def mask(self, start_date, end_date):
+        """
+        Mask features to only include data within a date range.
+        :param start_date: Start date to mask, inclusive
+        :param end_date: End date to mask, exclusive
+        :return: Filtered FeaturesData object
+        """
+        if len(self) == 0:
+            return self
+        mask = (start_date <= self.dates) & (self.dates < end_date)
+        filtered = FeaturesData.__new__(FeaturesData)
+        filtered.x = self.x[mask]
+        filtered.y = self.y[mask]
+        filtered.dates = self.dates[mask]
+        return filtered
 
     def __len__(self) -> int:
         """
@@ -68,10 +76,13 @@ class FeaturesData:
         """
         return len(self.x)
 
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, float]:
+    def __getitem__(self, date: datetime) -> torch.Tensor | None:
         """
-        Get the feature window tensor and target at the given index.
-        :param index: Index of the desired feature window
-        :return: Tuple of (feature window tensor, target value)
+        Index the feature window for prediction at a specific date.
+        :param date: Date to get features for
+        :return: Feature tensor of shape (length, features) or None if unavailable
         """
-        return (self.x[index], self.y[index])
+        if len(self) == 0 or date not in self.dates:
+            return None
+        index = np.where(self.dates == date)[0][0]
+        return self.x[index]
