@@ -1,13 +1,10 @@
 __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
-from turtle import pd
 import torch
 import numpy as np
 from datetime import datetime, timedelta
 from torch import Tensor
-from numpy import ndarray
-from pandas import DataFrame
 
 from features.equities.data import EquityData
 
@@ -23,8 +20,10 @@ class EquityFeatures:
         :param data: EquityData object containing equity data
         :param length: Length of feature windows to aggregate, default 60
         """
+        self.TICKER = data.TICKER
+
         # Roll data into windows and associated targets
-        windows, targets, dates = self._roll(data, length)
+        windows, targets, dates = self._roll_data(data, length)
         if not windows:
             self.x = torch.tensor([], dtype=torch.float32).reshape(0, 0, 0)
         else:
@@ -32,25 +31,25 @@ class EquityFeatures:
         self.y = torch.tensor(targets, dtype=torch.float32)
         self.dates = np.array(dates)
 
-    def _roll(self, data: EquityData, length: int) -> tuple[list, list, list]:
+    def _roll_data(self, data: EquityData, length: int) -> tuple[list, list, list]:
         """
         Roll data into windows and associated targets of given length.
         :param data: EquityData object containing equity data
         :param length: Length of windows to create
         :return: Tuple of (windows, targets, dates) of data
         """
+        windows, targets, dates = [], [], []
         index = data.index
-        date1, date2 = index[length], index[-1] + timedelta(days=1)
-        index_dates = index[(date1 <= index) & (index < date2)]
+        if len(index) < length:
+            return windows, targets, dates
 
         # Feature windows collect a rolling data length for each date
-        windows, targets, dates = [], [], []
+        date1, date2 = index[length], index[-1] + timedelta(days=1)
+        index_dates = index[(date1 <= index) & (index < date2)]
         for date in index_dates:
             date_data = data.data[data.index <= date]
             window = date_data.tail(length).values
             target = data.get_return(date)
-
-            # Do not use incomplete windows or dates that lack targets
             if len(window) != length or date not in index:
                 continue
             windows.append(window.astype(float))

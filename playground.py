@@ -2,53 +2,45 @@ __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
 import json
-import pandas as pd
 from pathlib import Path
+from datetime import datetime
+from compile import compile
 
-# ========== GET S&P 500 TICKERS ==========
-print("=" * 60)
-print("GETTING S&P 500 TICKERS")
-print("=" * 60)
-
-print("\nFetching S&P 500 ticker list from Wikipedia...")
-try:
-    # Get S&P 500 list from Wikipedia with proper headers
-    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    tables = pd.read_html(
-        url, header=0, storage_options={"User-Agent": headers["User-Agent"]}
-    )
-    sp500_table = tables[0]
-
-    # Extract tickers and clean them
-    tickers = sp500_table["Symbol"].tolist()
-    # Replace periods with hyphens (e.g., BRK.B -> BRK-B for yfinance)
-    tickers = [ticker.replace(".", "-") for ticker in tickers]
-
-    print(f"[OK] Found {len(tickers)} tickers")
-
-    # Save to JSON
-    output_path = Path("data/raw/sp500_tickers.json")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_path, "w") as f:
-        json.dump(tickers, f, indent=2)
-
-    print(f"[OK] Saved to: {output_path}")
-    print(f"\nFirst 10 tickers: {tickers[:10]}")
-    print(f"Last 10 tickers: {tickers[-10:]}")
-
-    print("\n" + "=" * 60)
-    print("S&P 500 TICKERS SAVED")
+if __name__ == "__main__":
+    print("=" * 60)
+    print("COMPILING DOW 30 DATASETS")
     print("=" * 60)
 
-except Exception as e:
-    print(f"\n[ERROR] Failed to fetch S&P 500 tickers: {e}")
-    import traceback
+    # Load the Dow 30 tickers
+    dow30_path = Path("data/raw/dow30_tickers.json")
+    with open(dow30_path, "r") as f:
+        tickers = json.load(f)
 
-    traceback.print_exc()
-    exit(1)
-print("DATASET LOADED")
-print("=" * 60)
+    print(f"\nTotal tickers: {len(tickers)}")
+
+    # Define date ranges for train/dev/test splits
+    train_dates = (datetime(2010, 1, 1), datetime(2021, 1, 1))
+    dev_dates = (datetime(2022, 1, 1), datetime(2023, 7, 1))
+    test_dates = (datetime(2024, 7, 1), datetime(2025, 7, 1))
+
+    print(f"\nDate ranges:")
+    print(f"  Train: {train_dates[0].date()} to {train_dates[1].date()}")
+    print(f"  Dev:   {dev_dates[0].date()} to {dev_dates[1].date()}")
+    print(f"  Test:  {test_dates[0].date()} to {test_dates[1].date()}")
+
+    # Compile the datasets
+    compile(
+        tickers=tickers,
+        dataset_name="dow30",
+        train_dates=train_dates,
+        dev_dates=dev_dates,
+        test_dates=test_dates,
+        regimes=3,
+        length=60,
+        model_dir="models/checkpoints",
+        output_dir="data/processed",
+    )
+
+    print("\n" + "=" * 60)
+    print("COMPILATION COMPLETED")
+    print("=" * 60)

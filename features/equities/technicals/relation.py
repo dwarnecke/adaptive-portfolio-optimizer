@@ -8,32 +8,26 @@ import yfinance as yf
 
 # Download SPY data once at module level
 SPY = yf.Ticker("SPY")
+SPY_CLOSE = SPY.history(start="2007-01-01", end="2030-01-01")["Close"]
+SPY_CLOSE.index = pd.DatetimeIndex(SPY_CLOSE.index).tz_localize(None)
+SPY_LOG_CLOSE = np.log(SPY_CLOSE + 1e-8)
 
 
 def calc_relative_return(data: DataFrame, length: int) -> Series:
     """
-    Calculate the relative return vs SPY (market) over a given length.
-    This measures outperformance or underperformance relative to the market.
+    Calculate the relative return against the market over a given length.
     :param data: DataFrame containing stock log close data
     :param length: Length to calculate the relative return over
-    :return: Series containing relative returns (stock return - SPY return)
+    :return: Series containing log relative returns
     """
     data = data.sort_index()
-
-    # Download market data covering the same date range
-    start_date = data.index.min()
-    end_date = data.index.max()
-    market_closes = SPY.history(start=start_date, end=end_date)["Close"]
-    # Remove timezone to make dates timezone-naive
-    market_closes.index = pd.DatetimeIndex(market_closes.index).tz_localize(None)
-    market_log_close = np.log(market_closes + 1e-8)
 
     # Calculate stock returns as the difference in log prices
     log_close = data["Log Close"]
     returns = log_close - log_close.shift(length)
-    market_returns = market_log_close - market_log_close.shift(length)
-    aligned_market_returns = market_returns.reindex(returns.index, method="ffill")
-    relative_return = returns - aligned_market_returns
+    market_returns = SPY_LOG_CLOSE - SPY_LOG_CLOSE.shift(length)
+    market_returns = market_returns.reindex(returns.index, method="ffill")
+    relative_return = returns - market_returns
 
     return relative_return
 
@@ -48,46 +42,12 @@ def calc_rolling_beta(data: DataFrame, length: int) -> Series:
     """
     data = data.sort_index()
 
-    # Download market benchmark data covering the same date range
-    start_date = data.index.min()
-    end_date = data.index.max()
-    market_closes = SPY.history(start=start_date, end=end_date)["Close"]
-    market_closes.index = pd.DatetimeIndex(market_closes.index).tz_localize(None)
-    market_log_close = np.log(market_closes + 1e-8)
-
     # Calculate rolling beta over the specified length
     returns = data["Log Close"].diff()
-    market_returns = market_log_close.diff()
-    aligned_market_returns = market_returns.reindex(returns.index, method="ffill")
-    beta = pd.Series(index=returns.index, dtype=float)
-    for i in range(length, len(returns)):
-        stock_window = returns.iloc[i - length : i]
-        market_window = aligned_market_returns.iloc[i - length : i]
-        beta.iloc[i] = _calc_beta(stock_window, market_window)
+    market_returns = SPY_LOG_CLOSE.diff()
+    market_returns = market_returns.reindex(returns.index, method="ffill")
+    rolling_cov = returns.rolling(window=length).cov(market_returns, ddof=1)
+    rolling_var = market_returns.rolling(window=length).var(ddof=1)
+    beta = rolling_cov / rolling_var
 
     return beta
-
-
-def _calc_beta(returns: Series, market_returns: Series) -> float:
-    """
-    Calculate beta (covariance / variance) for two return series.
-    :param returns: Series of stock returns over a window
-    :param market_returns: Series of market returns over the same window
-    :return: Beta value or NaN if insufficient data
-    """
-    # Process only if there are enough valid data points
-    if len(returns) < 2 or returns.isna().all() or market_returns.isna().all():
-        return np.nan
-    valid_mask = ~(returns.isna() | market_returns.isna())
-    if valid_mask.sum() < 2:
-        return np.nan
-
-    # Calculate beta as covariance(stock, market) / variance(market)
-    stock_clean = returns[valid_mask]
-    market_clean = market_returns[valid_mask]
-    covariance = np.cov(stock_clean, market_clean)[0, 1]
-    market_variance = np.var(market_clean, ddof=1)
-    if market_variance == 0 or not np.isfinite(market_variance):
-        return np.nan
-
-    return covariance / market_variance

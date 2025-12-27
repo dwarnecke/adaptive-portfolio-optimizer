@@ -2,7 +2,7 @@ __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from features.markets.indicators.vix_term import calc_term_structures
 from features.markets.indicators.index_momentum import calc_log_returns_20d
@@ -24,6 +24,8 @@ class ObservationsData:
         :param start_date: Start datetime for the data retrieval, inclusive
         :param end_date: End datetime for the data retrieval, exclusive
         """
+        # Subtract 6 months of data to allow for feature calculations
+        start_date = start_date - timedelta(days=180)
         self._start_date = start_date
         self._end_date = end_date
         self.dates = list_dates(start_date, end_date)
