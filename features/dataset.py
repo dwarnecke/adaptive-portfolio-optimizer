@@ -3,11 +3,12 @@ __email__ = "dylan.warnecke@gmail.com"
 
 import pickle
 import torch
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 from features.features import FeaturesData
 from features.markets.data import MarketData
+from features.markets.features import MarketFeatures
 from features.markets.observations import ObservationsData
 from models.universe import Universe
 
@@ -21,58 +22,58 @@ class FeaturesDataset:
         self,
         universe: Universe,
         path: str,
+        start_date: datetime,
+        end_date: datetime,
     ):
         """
         Initialize the features dataset for a given FeaturesData object.
         :param universe: Universe object containing equity data
         :param path: Path to regime model file
+        :param start_date: Start date for dataset features
+        :param end_date: End date for dataset features
         """
-        print("Loading features dataset for universe...")
+        print("\nLoading features dataset for universe...")
         self.tickers = {}
         self.data = {}
         self.lengths = {}
 
-        universe_start = datetime(2010, 1, 1)
-        universe_end = datetime.now() - timedelta(days=7)
-        market_data = MarketData(ObservationsData(universe_start, universe_end), path)
+        print(f"Generating index data from {start_date.date()} to {end_date.date()}...")
+        market_data = MarketData(ObservationsData(start_date, end_date), path)
+        market_features = MarketFeatures(market_data)
 
         # Generate feature data using the universe of tickers
         print(f"Generating feature data for {len(universe.data)} tickers...")
         index = 0
-        for equity_data in universe.data.values():
-            data = FeaturesData(equity_data, market_data)
+        for equity_features in universe.features.values():
+            data = FeaturesData(equity_features, market_features)
             if len(data) == 0:
                 continue
-            self.tickers[index] = equity_data.TICKER
+            self.tickers[index] = equity_features.TICKER
             self.data[index] = data
             self.lengths[index] = len(data)
             index += 1
 
     def save(
-        self,
-        start_date: datetime,
-        end_date: datetime,
-        directory: str = "data/processed",
-        filename: str = "dataset.pkl",
+        self, start_date: datetime, end_date: datetime, directory: str, filename: str
     ):
         """
         Save the preprocessed dataset to disk as a single compressed file.
         :param start_date: Start date for masking data, inclusive
         :param end_date: End date for masking data, exclusive
-        :param directory: Directory to save preprocessed data
-        :param filename: Name of the output file (default: dataset.pkl)
+        :param directory: Directory to save the dataset file
+        :param filename: Name of the dataset file to save
         """
         save_dir = Path(directory)
         save_dir.mkdir(parents=True, exist_ok=True)
         filepath = save_dir / filename
-        print(f"Saving preprocessed dataset to {filepath.absolute()}...")
+        print(f"\nSaving dataset to {filepath.absolute()}...")
 
         # Collect all ticker data into a single dictionary
         data_dict, tickers, lengths = {}, {}, {}
         total_samples = 0
         new_index = 0
         for index, data in self.data.items():
-            data = data.mask_date_range(start_date, end_date)
+            data = data.mask_dates(start_date, end_date)
             if len(data) == 0:
                 continue
             data_dict[new_index] = {"x": data.x, "y": data.y, "dates": data.dates}
@@ -82,7 +83,7 @@ class FeaturesDataset:
             new_index += 1
             print(f"  Packed {self.tickers[index]}: {len(data)} samples")
 
-        # Save the complete dataset structure as a compressed pickle file
+        # Save the complete dataset structure into a file
         dataset_bundle = {"tickers": tickers, "lengths": lengths, "data": data_dict}
         with open(filepath, "wb") as f:
             pickle.dump(dataset_bundle, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -121,8 +122,6 @@ class FeaturesDataset:
             data_obj.x = data["x"]
             data_obj.y = data["y"]
             data_obj.dates = data["dates"]
-            if len(data_obj) == 0:
-                continue
             instance.data[index] = data_obj
 
         file_size_mb = filepath.stat().st_size / (1024 * 1024)
@@ -143,8 +142,9 @@ class FeaturesDataset:
             if total <= index < total + length:
                 local_index = index - total
                 data = self.data[ticker_index]
-                x, y = data[local_index]
-                return x, y
+                return data[local_index]
+            total += length
+        raise IndexError(f"Index {index} out of range for dataset of size {len(self)}")
 
     def __len__(self) -> int:
         """

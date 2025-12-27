@@ -26,7 +26,7 @@ def train(
     print("\nInitializing training... ")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     features = dataset[0][0].shape[-1]
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
     print("Initializing model... ", end="")
     model = ForwardModel(units_in=features, hidden_layers=2, units_hidden=64)
@@ -35,29 +35,72 @@ def train(
     print(f"{params} parameters initialized", end="\n")
 
     print("Computing normalization statistics... ", end="")
-    stack = torch.stack([dataset[i][0] for i in range(len(dataset))])
-    stack.to(device)
+    # Sample a subset for initialization to avoid memory issues
+    sample_size = min(1000, len(dataset))
+    stack = torch.stack(
+        [torch.nan_to_num(dataset[i][0], nan=0.0) for i in range(sample_size)]
+    )
+    stack = stack.to(device)
     model.initialize(stack)
     print("calculated", end="\n")
 
     # Train over the number of epochs specified
-    print(f"\nTraining for {epochs} epochs with learning rate {learning_rate}...")
+    print(f"\nTraining for {epochs} epochs with learning rate {learning_rate:.6f}...")
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
     for epoch in range(epochs):
         model.train()
         train_loss = 0.0
         train_batches = 0
-        for _, (x, y) in enumerate(loader):
+        for x, y in loader:
             x, y = x.to(device), y.to(device)
+
+            # Check for NaN/Inf in input
+            if torch.isnan(x).any() or torch.isinf(x).any():
+                print(f"WARNING: NaN/Inf in input x")
+                continue
+            if torch.isnan(y).any() or torch.isinf(y).any():
+                print(f"WARNING: NaN/Inf in target y")
+                continue
+
             optimizer.zero_grad()
             output = model(x)
+
+            # Check for NaN/Inf in model output
+            if torch.isnan(output).any() or torch.isinf(output).any():
+                print(f"WARNING: NaN/Inf in model output")
+                print(
+                    f"  x stats: min={x.min().item():.4f}, max={x.max().item():.4f}, mean={x.mean().item():.4f}"
+                )
+                print(f"  output: {output[:3]}")
+                continue
+
             mu_hat, sigma_hat = output[:, 0], output[:, 1]
+            # Clamp sigma to prevent numerical instability
+            sigma_hat = torch.clamp(sigma_hat, min=2**-12, max=2**3)
+
+            # Check sigma_hat
+            if torch.isnan(sigma_hat).any() or (sigma_hat <= 0).any():
+                print(f"WARNING: Invalid sigma_hat")
+                print(f"  sigma_hat: {sigma_hat[:10]}")
+                continue
+
             loss = _calc_loss(model, mu_hat, sigma_hat, y)
+
+            # Check loss
+            if torch.isnan(loss) or torch.isinf(loss):
+                print(f"WARNING: NaN/Inf loss")
+                print(f"  mu_hat: {mu_hat[:5]}")
+                print(f"  sigma_hat: {sigma_hat[:5]}")
+                print(f"  y: {y[:5]}")
+                continue
+
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
             train_batches += 1
-        avg_train_loss = train_loss / train_batches
+        avg_train_loss = (
+            train_loss / train_batches if train_batches > 0 else float("nan")
+        )
         print(f"\nEpoch {epoch+1}/{epochs}, Loss {avg_train_loss:.4f}")
 
     # Save model to the models directory

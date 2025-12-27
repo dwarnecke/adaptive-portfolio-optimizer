@@ -15,7 +15,7 @@ def get_shares_outstanding(data: pd.DataFrame, dates: list[datetime]) -> pd.Seri
     :return: Series with dates as index and shares outstanding as values
     """
     data = data.copy()
-    
+
     # Convert the Date column to datetime objects
     data["Date"] = pd.to_datetime(data["Date"].apply(cast_str_date))
     data = data.sort_values(by="Date", ascending=True)

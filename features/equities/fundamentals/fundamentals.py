@@ -22,73 +22,80 @@ class FundamentalsData:
     Class to hold and manage fundamental data for a specific ticker.
     """
 
-    def __init__(self, ticker: str, data: dict):
+    def __init__(self, ticker: str, fund_data: dict):
         """
         Initialize a fundamental dataset for a specific ticker.
         :param ticker: String ticker to download
-        :param data: Dictionary containing loaded fundamentals data
+        :param fund_data: Dictionary containing loaded fundamentals data
         """
         self._TICKER = ticker
         self._dates = []
         self._min_date = datetime(1900, 1, 1)
 
-        # Load data and calculate fundamental features for the ticker
-        self._data = {}
-        self._load_data(data)
-        self._features = pd.DataFrame()
-        self._calc_features()
+        self.data = self._load_data(fund_data)
 
-    def _load_data(self, data: dict):
-        """
-        Load the loaded fundamental data for the ticker.
-        :param data: Dictionary containing loaded fundamentals data
-        """
-        for concept, concept_data in data.items():
-            ticker_data = concept_data[concept_data["Ticker"] == self._TICKER]
-            self._data[concept] = ticker_data
-            dates_name = "Report Date" if concept != "shares" else "Date"
-            dates = ticker_data[dates_name].apply(cast_str_date).tolist()
-            # Use the maximum of all minimum dates to ensure all sources have data
-            concept_min_date = min(dates) if dates else datetime(2100, 1, 1)
-            self._min_date = max(concept_min_date, self._min_date)
-            self._dates = sorted(set(self._dates).union(set(dates)))
-
-    def _calc_features(self, dates: list[datetime] = None):
-        """
-        Calculate features for the ticker for faster access.
-        :param dates: Dates to calculate features for, default None calculates all
-        """
-        # Skip calculating features if there are no dates available
+        # Return if no data is available for the ticker
         if len(self._dates) == 0 or self._min_date >= datetime(2100, 1, 1):
             self._features = pd.DataFrame()
             return
 
-        # Calculate to the end of available reports if none provided
-        if dates is None:
-            max_date = max(self._dates) + timedelta(days=1)
-            dates = list_dates(self._min_date, max_date)
+        self._features = self._calc_features()
+
+    def _load_data(self, fund_data: dict) -> dict:
+        """
+        Load the loaded fundamental data for the ticker.
+        :param data: Dictionary containing loaded fundamentals data
+        :return: Dictionary containing loaded fundamental data for this ticker
+        """
+        data = {}
+
+        for concept, concept_data in fund_data.items():
+            concept_ticker_data = concept_data[concept_data["Ticker"] == self._TICKER]
+            data[concept] = concept_ticker_data
+            # Use Publish Date for point-in-time alignment to avoid pre-publication gaps
+            dates_name = "Publish Date" if concept != "shares" else "Date"
+            dates = concept_ticker_data[dates_name].apply(cast_str_date).tolist()
+            self._dates = sorted(set(self._dates).union(set(dates)))
+
+            # Use the maximum of all minimum dates to ensure all sources have data
+            concept_min_date = min(dates) if dates else datetime(2100, 1, 1)
+            self._min_date = max(concept_min_date, self._min_date)
+
+        return data
+
+    def _calc_features(self):
+        """
+        Calculate features for the ticker for faster access.
+        :return: DataFrame containing calculated features
+        """
+        max_date = max(self._dates) + timedelta(days=1)
+        dates = list_dates(self._min_date, max_date)
         dates = [date for date in dates if date >= self._min_date]
 
-        if self._features.empty:
-            self._features = pd.DataFrame(index=dates)
-        self._calc_market_caps(dates)
-        self._calc_debt_assets_ratio(dates)
-        self._calc_earnings_price_ratio(dates)
-        self._calc_sales_price_ratio(dates)
-        self._calc_cash_flow_price_ratio(dates)
-        self._calc_book_price_ratio(dates)
-        self._calc_operating_margin(dates)
-        self._calc_return_on_equity(dates)
-        self._calc_revenue_growth(dates)
-        self._calc_earnings_growth(dates)
+        # Calculate market capitalizations for use in other features
+        features = pd.DataFrame(index=dates)
+        features["MC"] = self._calc_market_caps(dates)
+        self._features = features
 
-        # Zero out NA values and add NA indicators to the features
-        self._features.replace([np.inf, -np.inf, np.nan], None, inplace=True)
-        na_features = ["OM", "ROE", "RG", "EG"]
-        for feature in na_features:
-            indicator = self._features[feature].isna().astype(int)
-            indicator = indicator.fillna(0).infer_objects(copy=False)
-            self._features[f"{feature}_NA"] = indicator
+        # Calculate all features and store in a DataFrame
+        features["D/A"] = self._calc_debt_assets_ratio(dates)
+        features["E/P"] = self._calc_earnings_price_ratio(dates)
+        features["S/P"] = self._calc_sales_price_ratio(dates)
+        features["CF/P"] = self._calc_cash_flow_price_ratio(dates)
+        features["B/P"] = self._calc_book_price_ratio(dates)
+        features["OM"] = self._calc_operating_margin(dates)
+        features["ROE"] = self._calc_return_on_equity(dates)
+        features["RG"] = self._calc_revenue_growth(dates)
+        features["EG"] = self._calc_earnings_growth(dates)
+
+        # Replace infinities and add a single NA indicator for trailing features
+        features.replace([np.inf, -np.inf], None, inplace=True)
+        trailing_cols = ["E/P", "S/P", "CF/P", "OM", "ROE", "RG", "EG"]
+        features["FUND_NA"] = features[trailing_cols].isna().any(axis=1).astype(int)
+        for feat in trailing_cols:
+            features[feat] = pd.to_numeric(features[feat], errors="coerce").fillna(0)
+
+        return features
 
     def _calc_market_caps(self, dates: list[datetime]):
         """
@@ -98,8 +105,8 @@ class FundamentalsData:
         ticker = yf.Ticker(self._TICKER)
         prices = ticker.history(period="max")
         prices.index = convert_datetimeindex(prices.index)
-        shares = get_shares_outstanding(self._data["shares"], dates)
-        self._features["MC"] = shares * prices["Close"]
+        shares = get_shares_outstanding(self.data["shares"], dates)
+        return shares * prices["Close"]
 
     def _calc_debt_assets_ratio(self, dates: list[datetime]):
         """
@@ -107,9 +114,9 @@ class FundamentalsData:
         :param dates: Dates to calculate the ratio for
         """
         dates = [date for date in dates if self._is_date_valid(date)]
-        debt = get_balance("Total Liabilities", self._data["balances"], dates)
-        assets = get_balance("Total Assets", self._data["balances"], dates)
-        self._features.loc[dates, "D/A"] = debt / assets
+        debt = get_balance("Total Liabilities", self.data["balances"], dates)
+        assets = get_balance("Total Assets", self.data["balances"], dates)
+        return debt / assets
 
     def _calc_earnings_price_ratio(self, dates: list[datetime]):
         """
@@ -117,9 +124,9 @@ class FundamentalsData:
         :param dates: Dates to calculate the ratio for
         """
         dates = [date for date in dates if self._is_date_valid(date)]
-        earnings = get_trailing_earnings("Net Income", self._data["incomes"], dates)
+        earnings = get_trailing_earnings("Net Income", self.data["incomes"], dates)
         price = self._features.loc[dates, "MC"]
-        self._features.loc[dates, "E/P"] = earnings / price
+        return earnings / price
 
     def _calc_sales_price_ratio(self, dates: list[datetime]):
         """
@@ -127,9 +134,9 @@ class FundamentalsData:
         :param dates: Dates to calculate the ratio for
         """
         dates = [date for date in dates if self._is_date_valid(date)]
-        sales = get_trailing_earnings("Revenue", self._data["incomes"], dates)
+        sales = get_trailing_earnings("Revenue", self.data["incomes"], dates)
         price = self._features.loc[dates, "MC"]
-        self._features.loc[dates, "S/P"] = sales / price
+        return sales / price
 
     def _calc_cash_flow_price_ratio(self, dates: list[datetime]):
         """
@@ -138,10 +145,10 @@ class FundamentalsData:
         """
         dates = [date for date in dates if self._is_date_valid(date)]
         cash_flow = get_trailing_earnings(
-            "Net Change in Cash", self._data["cashflows"], dates
+            "Net Change in Cash", self.data["cashflows"], dates
         )
         price = self._features.loc[dates, "MC"]
-        self._features.loc[dates, "CF/P"] = cash_flow / price
+        return cash_flow / price
 
     def _calc_book_price_ratio(self, dates: list[datetime]):
         """
@@ -149,9 +156,9 @@ class FundamentalsData:
         :param dates: Dates to calculate the ratio for
         """
         dates = [date for date in dates if self._is_date_valid(date)]
-        equity = get_balance("Total Equity", self._data["balances"], dates)
+        equity = get_balance("Total Equity", self.data["balances"], dates)
         price = self._features.loc[dates, "MC"]
-        self._features.loc[dates, "B/P"] = equity / price
+        return equity / price
 
     def _calc_operating_margin(self, dates: list[datetime]):
         """
@@ -160,10 +167,10 @@ class FundamentalsData:
         """
         dates = [date for date in dates if self._is_date_valid(date)]
         earnings = get_trailing_earnings(
-            "Operating Income (Loss)", self._data["incomes"], dates
+            "Operating Income (Loss)", self.data["incomes"], dates
         )
-        revenue = get_trailing_earnings("Revenue", self._data["incomes"], dates)
-        self._features.loc[dates, "OM"] = earnings / revenue
+        revenue = get_trailing_earnings("Revenue", self.data["incomes"], dates)
+        return earnings / revenue
 
     def _calc_return_on_equity(self, dates: list[datetime]):
         """
@@ -171,9 +178,9 @@ class FundamentalsData:
         :param dates: Dates to calculate ROE for
         """
         dates = [date for date in dates if self._is_date_valid(date)]
-        earnings = get_trailing_earnings("Net Income", self._data["incomes"], dates)
-        equity = get_balance("Total Equity", self._data["balances"], dates)
-        self._features.loc[dates, "ROE"] = earnings / equity
+        earnings = get_trailing_earnings("Net Income", self.data["incomes"], dates)
+        equity = get_balance("Total Equity", self.data["balances"], dates)
+        return earnings / equity
 
     def _calc_revenue_growth(self, dates: list[datetime]):
         """
@@ -183,13 +190,12 @@ class FundamentalsData:
         dates = [date for date in dates if self._is_date_valid(date)]
         dates0 = [date - timedelta(days=365) for date in dates]
         dates0 = [get_last_date(date) for date in dates0]
-        revenue = get_trailing_earnings("Revenue", self._data["incomes"], dates)
-        revenue0 = get_trailing_earnings("Revenue", self._data["incomes"], dates0)
+        revenue = get_trailing_earnings("Revenue", self.data["incomes"], dates)
+        revenue0 = get_trailing_earnings("Revenue", self.data["incomes"], dates0)
 
         # Reindex revenue0 to align with current dates for vectorized calculation
         revenue0_aligned = pd.Series(revenue0.values, index=dates)
-        growth = (revenue - revenue0_aligned) / revenue0_aligned
-        self._features.loc[dates, "RG"] = growth
+        return (revenue - revenue0_aligned) / revenue0_aligned
 
     def _calc_earnings_growth(self, dates: list[datetime]):
         """
@@ -199,13 +205,12 @@ class FundamentalsData:
         dates = [date for date in dates if self._is_date_valid(date)]
         dates0 = [date - timedelta(days=365) for date in dates]
         dates0 = [get_last_date(date) for date in dates0]
-        earnings = get_trailing_earnings("Net Income", self._data["incomes"], dates)
-        earnings0 = get_trailing_earnings("Net Income", self._data["incomes"], dates0)
+        earnings = get_trailing_earnings("Net Income", self.data["incomes"], dates)
+        earnings0 = get_trailing_earnings("Net Income", self.data["incomes"], dates0)
 
         # Reindex earnings0 to align with current dates for vectorized calculation
         earnings0_aligned = pd.Series(earnings0.values, index=dates)
-        growth = (earnings - earnings0_aligned) / earnings0_aligned
-        self._features.loc[dates, "EG"] = growth
+        return (earnings - earnings0_aligned) / earnings0_aligned
 
     def _is_date_valid(self, date: datetime) -> bool:
         """
@@ -226,14 +231,6 @@ class FundamentalsData:
         :return: Market capitalization as a float
         """
         return self._features.loc[date, "MC"]
-
-    @property
-    def data(self) -> pd.DataFrame:
-        """
-        Get the loaded fundamental data for the ticker.
-        :return: Dictionary of DataFrames containing loaded fundamental data
-        """
-        return self._data.copy()
 
     @property
     def features(self) -> pd.DataFrame:

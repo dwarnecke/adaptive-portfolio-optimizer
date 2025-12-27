@@ -1,21 +1,24 @@
 __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
+from train import train
 from features.dataset import FeaturesDataset
 
 if __name__ == "__main__":
+    print("=" * 60)
+    print("TRAINING FORWARD MODEL ON DOW 30 DATASET")
+    print("=" * 60)
+
+    # Load the training dataset
     print("\nLoading training dataset...")
-    dataset = FeaturesDataset.load(
-        directory="data/processed", filename="train_dataset.pkl"
+    train_dataset = FeaturesDataset.load(
+        directory="data/processed", filename="dow30_train.pkl"
     )
 
-    print(f"\nDataset loaded successfully!")
-    print(f"Number of tickers: {len(dataset.tickers)}")
-    print(f"Total samples: {len(dataset)}")
-    print(f"\nFirst 10 tickers: {list(dataset.tickers.values())[:10]}")
+    # Train the model
+    print("\nStarting training...")
+    model = train(dataset=train_dataset, epochs=2, batch_size=64, learning_rate=2**-13)
 
-    # Show sample information
-    if len(dataset) > 0:
-        x, y = dataset[0]
-        print(f"\nSample shape: {x.shape}")
-        print(f"Sample target: {y}")
+    print("\n" + "=" * 60)
+    print("TRAINING COMPLETED SUCCESSFULLY")
+    print("=" * 60)

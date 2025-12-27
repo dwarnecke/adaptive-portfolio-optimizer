@@ -3,7 +3,7 @@ __email__ = "dylan.warnecke@gmail.com"
 
 from datetime import datetime
 
-from data.loader import load_fundamentals
+from data.raw.loader import load_fundamentals
 from features.equities.data import EquityData
 from features.equities.features import EquityFeatures
 
@@ -30,7 +30,7 @@ class Universe:
 
         # Load fundamentals if not provided
         if data is None:
-            print("Loading fundamentals data for universe...")
+            print("Loading fundamentals data...")
             data = load_fundamentals()
 
         # Filter tickers to the available list
@@ -40,7 +40,6 @@ class Universe:
         else:
             tickers = [ticker for ticker in tickers if ticker in avail_tickers]
 
-        # Load equity data and features for the tickers
         self.data = self._load_data(tickers, data)
         self.features = self._load_features(length)
 
@@ -62,7 +61,7 @@ class Universe:
             data[index] = equity_data
             index += 1
         print(end="\n")
-        print(f"Loaded {len(data)} equities into the universe.")
+        print(f"Loaded data for {len(data)} equities")
         return data
 
     def _load_features(self, length: int) -> dict:
@@ -71,11 +70,11 @@ class Universe:
         :param length: Length of feature windows to aggregate
         :return: Features dictionary mapping index to EquityFeatures objects
         """
-        print("Loading equity features for universe...")
+        print("Loading features for universe...")
         features = {}
         for index, equity in self.data.items():
             features[index] = EquityFeatures(equity, length)
-        print(f"Loaded features for {len(self.features)} equities.")
+        print(f"Loaded features for {len(features)} equities")
         return features
 
     def size(self, date: datetime) -> int:

@@ -11,8 +11,9 @@ HEADERS = {"User-Agent": "Dylan Warnecke <dylan.warnecke@gmail.com>"}
 SPY = yf.Ticker("^GSPC")
 
 # Load all historical trading dates once
-data = SPY.history(period="max")
+data = SPY.history(period="max", interval="1d")
 open_dates = [date.to_pydatetime().replace(tzinfo=None) for date in data.index]
+
 
 # Build constant dictionaries for O(1) lookups
 _NEXT_TRADING_DATE = {}
@@ -58,7 +59,9 @@ def list_dates(start_date: datetime, end_date: datetime) -> list[datetime]:
     current_date = get_next_date(current_date + timedelta(days=1))
     while current_date < end_date:
         dates.append(current_date)
-        current_date = get_next_date(current_date + timedelta(days=1))
+        # Get the next trading date after this one
+        current_date = get_next_date(current_date)
+    
     return dates
 
 

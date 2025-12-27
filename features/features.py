@@ -24,36 +24,16 @@ class FeaturesData:
         :param equity: EquityFeatures object with equity features and targets
         :param market: MarketFeatures object with market features
         """
-        # Find dates that exist in both feature sets
-        equity_dates = set(equity.dates)
-        market_dates = set(market.dates)
-        index_dates = equity_dates & market_dates
-        index_dates = sorted(index_dates)  # Keep chronological order
-
-        # Build tensors only for common dates
-        windows, targets, dates = [], [], []
-        for date in index_dates:
-            equity_window = equity[date]
-            market_window = market[date]
-            if equity_window is None or market_window is None:
-                continue
-            combined = torch.cat([equity_window, market_window], dim=-1)
-            index = np.where(equity.dates == date)[0][0]
-            target = equity.y[index]
-            windows.append(combined)
-            targets.append(target)
-            dates.append(date)
-
+        # Join equity and market features on common dates
+        windows, targets, dates = self._join_features(equity, market)
         if not windows:
             self.x = torch.tensor([], dtype=torch.float32).reshape(0, 0, 0)
-            self.y = torch.tensor([], dtype=torch.float32)
-            self.dates = np.array([])
-
-        self.x = torch.stack(windows)
-        self.y = torch.stack(targets)
+        else:
+            self.x = torch.tensor(np.array(windows), dtype=torch.float32)
+        self.y = torch.tensor(targets, dtype=torch.float32)
         self.dates = np.array(dates)
 
-    def mask(self, start_date, end_date):
+    def mask_dates(self, start_date, end_date):
         """
         Mask features to only include data within a date range.
         :param start_date: Start date to mask, inclusive
@@ -69,6 +49,35 @@ class FeaturesData:
         filtered.dates = self.dates[mask]
         return filtered
 
+    def _join_features(
+        self, equity: EquityFeatures, market: MarketFeatures
+    ) -> tuple[list, list, list]:
+        """
+        Join equity and market features on common dates.
+        :param equity: EquityFeatures object with equity features and targets
+        :param market: MarketFeatures object with market features
+        :return: Tuple of (windows, targets, dates) of combined features
+        """
+        equity_dates = set(equity.dates)
+        market_dates = set(market.dates)
+        index_dates = equity_dates & market_dates
+        index_dates = sorted(index_dates)  # Keep chronological order
+
+        # Combine features and targets for common dates
+        windows, targets, dates = [], [], []
+        for date in index_dates:
+            equity_result = equity[date]
+            market_window = market[date]
+            if equity_result is None or market_window is None:
+                continue
+            equity_window, target = equity_result
+            combined = torch.cat([equity_window, market_window], dim=-1)
+            windows.append(combined)
+            targets.append(target)
+            dates.append(date)
+
+        return windows, targets, dates
+
     def __len__(self) -> int:
         """
         Get the number of feature windows.
@@ -76,13 +85,23 @@ class FeaturesData:
         """
         return len(self.x)
 
-    def __getitem__(self, date: datetime) -> torch.Tensor | None:
+    def __getitem__(self, index: int | datetime) -> tuple[torch.Tensor, float] | torch.Tensor | None:
         """
-        Index the feature window for prediction at a specific date.
-        :param date: Date to get features for
-        :return: Feature tensor of shape (length, features) or None if unavailable
+        Index the feature data by integer position or by date.
+        :param index: Integer position or datetime to get features for
+        :return: For int: (x, y) tuple. For datetime: x tensor or None if unavailable
         """
-        if len(self) == 0 or date not in self.dates:
-            return None
-        index = np.where(self.dates == date)[0][0]
-        return self.x[index]
+        if isinstance(index, int):
+            # Integer indexing: return (x, y) tuple
+            if index < 0 or index >= len(self):
+                raise IndexError(f"Index {index} out of range for length {len(self)}")
+            return self.x[index], self.y[index].item()
+        elif isinstance(index, datetime):
+            # Datetime indexing: return x tensor
+            if len(self) == 0 or index not in self.dates:
+                return None
+            date_index = np.where(self.dates == index)[0][0]
+            return self.x[date_index]
+        else:
+            raise TypeError(f"Index must be int or datetime, not {type(index).__name__}")
+    
