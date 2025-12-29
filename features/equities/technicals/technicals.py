@@ -71,14 +71,23 @@ class TechnicalsData:
             self._calc_normal_scores(length)
             self._calc_drawdown(length)
             self._calc_momentum(length)
+
         lengths = [5, 60, 250]
         for length in lengths:
             self._calc_relative_return(length)
+        
         lengths = [60, 250]
         for length in lengths:
             self._calc_beta(length)
+        
         self._calc_strength()
         self._calc_volatility()
+        
+        # Add NA indicator for insufficient technical data and fill NaNs as 0
+        tech_cols = [col for col in self._features.columns]
+        indicator = self._features[tech_cols].isna().any(axis=1).astype(int)
+        self._features["TECH_NA"] = indicator
+        self._features = self._features.fillna(0)
 
     def _calc_normal_scores(self, length: int):
         """

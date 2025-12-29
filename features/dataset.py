@@ -102,7 +102,7 @@ class FeaturesDataset:
         :param filename: Name of the dataset file (default: dataset.pkl)
         :return: FeaturesDataset instance with loaded data
         """
-        print(f"Loading dataset from {directory}/{filename}...")
+        print(f"\nLoading dataset from {directory}/{filename}...")
         load_dir = Path(directory)
         filepath = load_dir / filename
         with open(filepath, "rb") as f:
@@ -127,8 +127,9 @@ class FeaturesDataset:
         file_size_mb = filepath.stat().st_size / (1024 * 1024)
         num_tickers = len(instance.tickers)
         num_samples = len(instance)
-        print(f"\nLoaded {num_tickers} tickers, {num_samples} total samples")
+        print(f"Loaded {num_tickers} tickers, {num_samples} total samples")
         print(f"File size: {file_size_mb:.2f} MB")
+        
         return instance
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, float]:

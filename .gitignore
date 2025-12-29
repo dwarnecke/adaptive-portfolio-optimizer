@@ -42,5 +42,5 @@ pip-wheel-metadata/
 # Data and model artifacts (repo-specific)
 data/raw/simfin/**
 data/processed/*.pkl
-models/checkpoints/*.pt
-models/checkpoints/*.pkl
+models/checkpoints/*
+!models/checkpoints/.gitkeep

@@ -4,6 +4,7 @@ __email__ = "dylan.warnecke@gmail.com"
 import torch
 import numpy as np
 from datetime import datetime
+from torch import Tensor
 
 from features.equities.features import EquityFeatures
 from features.markets.features import MarketFeatures
@@ -85,23 +86,23 @@ class FeaturesData:
         """
         return len(self.x)
 
-    def __getitem__(self, index: int | datetime) -> tuple[torch.Tensor, float] | torch.Tensor | None:
+    def __getitem__(self, index: int) -> tuple[Tensor, float]:
         """
         Index the feature data by integer position or by date.
         :param index: Integer position or datetime to get features for
-        :return: For int: (x, y) tuple. For datetime: x tensor or None if unavailable
+        :return: Tuple (x, y) for int index, 
         """
-        if isinstance(index, int):
-            # Integer indexing: return (x, y) tuple
-            if index < 0 or index >= len(self):
-                raise IndexError(f"Index {index} out of range for length {len(self)}")
-            return self.x[index], self.y[index].item()
-        elif isinstance(index, datetime):
-            # Datetime indexing: return x tensor
-            if len(self) == 0 or index not in self.dates:
-                return None
-            date_index = np.where(self.dates == index)[0][0]
-            return self.x[date_index]
-        else:
-            raise TypeError(f"Index must be int or datetime, not {type(index).__name__}")
+        if index < 0 or index >= len(self):
+            raise IndexError(f"Index {index} out of range for length {len(self)}")
+        return self.x[index], self.y[index].item()
     
+    def get_item_from_date(self, date: datetime) -> tuple[Tensor, float]:
+        """
+        Get the feature tensor and target for the given date.
+        :param date: Date to get features for
+        :return: Tuple of (feature tensor, target value) or None if unavailable
+        """
+        if len(self) == 0 or date not in self.dates:
+            return None
+        index = np.where(self.dates == date)[0][0]
+        return self.x[index], self.y[index].item()

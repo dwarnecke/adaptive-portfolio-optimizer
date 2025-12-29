@@ -54,9 +54,9 @@ class ForwardModel(nn.Module):
         """
         means = x.mean(dim=(0, 1), keepdim=True)
         stds = x.std(dim=(0, 1), keepdim=True)
-        stds = torch.clamp(stds, min=1e-8)
+        stds = torch.clamp(stds, min=0.0001)  # Prevent division by zero
 
-        # Copy to buffers (buffers already on correct device from model.to())
+        # Copy the statistics into the registered buffers
         self._mean.copy_(means)
         self._std.copy_(stds)
         self._initialized.fill_(True)
