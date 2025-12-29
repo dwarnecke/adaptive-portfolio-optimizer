@@ -90,7 +90,7 @@ class PortfolioModel:
         :param index: Equity index in the universe
         :return: Tuple of (return, volatility) estimates
         """
-        equity_window = self.universe.features[index][date]
+        equity_window = self.universe.features[index].get_item_from_date(date)
         if equity_window is None:
             return None
 
