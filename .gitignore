@@ -41,5 +41,15 @@ pip-wheel-metadata/
 
 # Data and model artifacts (repo-specific)
 data/raw/simfin/**
+data/datasets/**
 data/processed/*.pkl
-models/models/*
+models/models/**
+outputs/datasets/**
+outputs/models/**
+outputs/regimes/**
+
+# Large data files
+*.pkl
+*.pth
+*.csv
+*.zip
