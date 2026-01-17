@@ -1,0 +1,1 @@
+{"alpha": 0.0009765625, "batch_size": 1024, "num_epochs": 1, "num_layers": 1, "num_heads": 2, "units_hidden": 32, "lambda_l2": 1.52587890625e-05, "lambda_mu": 4, "loss_type": "mse"}

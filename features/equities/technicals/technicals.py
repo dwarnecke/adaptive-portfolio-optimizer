@@ -18,7 +18,7 @@ from features.equities.technicals.relation import (
     calc_rolling_beta,
 )
 
-from utils.tickers import download_data
+from utils import download_data
 
 
 class TechnicalsData:
@@ -43,8 +43,6 @@ class TechnicalsData:
         Download historical stock data.
         """
         data = download_data(self._TICKER)
-
-        # Skip processing if no data was downloaded
         if data.empty:
             self._data = pd.DataFrame()
             return
@@ -75,15 +73,15 @@ class TechnicalsData:
         lengths = [5, 60, 250]
         for length in lengths:
             self._calc_relative_return(length)
-        
+
         lengths = [60, 250]
         for length in lengths:
             self._calc_beta(length)
-        
+
         self._calc_strength()
         self._calc_volatility()
-        
-        # Add NA indicator for insufficient technical data and fill NaNs as 0
+
+        # Add NA indicator for insufficient technical data
         tech_cols = [col for col in self._features.columns]
         indicator = self._features[tech_cols].isna().any(axis=1).astype(int)
         self._features["TECH_NA"] = indicator
@@ -96,7 +94,7 @@ class TechnicalsData:
         """
         columns = ["Log Close", "Log Volume"]
         for column in columns:
-            scores = calc_zscore(self._data, length, column=column)
+            scores = calc_zscore(self.data, length, column=column)
             self._features[f"{column} Normal Score {length}"] = scores
 
     def _calc_drawdown(self, length: int):
@@ -154,7 +152,7 @@ class TechnicalsData:
         :return: DataFrame containing loaded technical data
         """
         return self._data.copy()
-    
+
     @property
     def features(self) -> pd.DataFrame:
         """

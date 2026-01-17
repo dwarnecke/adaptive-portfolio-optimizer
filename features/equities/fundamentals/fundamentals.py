@@ -9,11 +9,12 @@ from datetime import datetime, timedelta
 from features.equities.fundamentals.balances import get_balance
 from features.equities.fundamentals.earnings import get_trailing_earnings
 from features.equities.fundamentals.shares import get_shares_outstanding
-from utils.dates import (
+from utils import (
     cast_str_date,
     convert_datetimeindex,
     get_last_date,
     list_dates,
+    get_max_trading_date,
 )
 
 
@@ -22,15 +23,17 @@ class FundamentalsData:
     Class to hold and manage fundamental data for a specific ticker.
     """
 
-    def __init__(self, ticker: str, fund_data: dict):
+    def __init__(self, ticker: str, fund_data: dict, max_date: datetime = None):
         """
         Initialize a fundamental dataset for a specific ticker.
         :param ticker: String ticker to download
         :param fund_data: Dictionary containing loaded fundamentals data
+        :param max_date: Maximum date for fundamental data
         """
         self._TICKER = ticker
         self._dates = []
         self._min_date = datetime(1900, 1, 1)
+        self._max_date = max_date
 
         self.data = self._load_data(fund_data)
 
@@ -52,9 +55,15 @@ class FundamentalsData:
         for concept, concept_data in fund_data.items():
             concept_ticker_data = concept_data[concept_data["Ticker"] == self._TICKER]
             data[concept] = concept_ticker_data
-            # Use Publish Date for point-in-time alignment to avoid pre-publication gaps
+
+            # Use the publish date to avoid lookahead bias of released earnings
             dates_name = "Publish Date" if concept != "shares" else "Date"
             dates = concept_ticker_data[dates_name].apply(cast_str_date).tolist()
+            
+            # Filter dates by the max date if specified
+            if self._max_date is not None:
+                dates = [d for d in dates if d <= self._max_date]
+            
             self._dates = sorted(set(self._dates).union(set(dates)))
 
             # Use the maximum of all minimum dates to ensure all sources have data
@@ -69,6 +78,9 @@ class FundamentalsData:
         :return: DataFrame containing calculated features
         """
         max_date = max(self._dates) + timedelta(days=1)
+        # Cap max_date to the last available trading date to prevent KeyError
+        max_available = get_max_trading_date()
+        max_date = min(max_date, max_available)
         dates = list_dates(self._min_date, max_date)
         dates = [date for date in dates if date >= self._min_date]
 
@@ -90,7 +102,7 @@ class FundamentalsData:
 
         # Replace infinities and add a single NA indicator for trailing features
         features.replace([np.inf, -np.inf], None, inplace=True)
-        trailing_cols = ["E/P", "S/P", "CF/P", "OM", "ROE", "RG", "EG"]
+        trailing_cols = ["D/A", "E/P", "S/P", "CF/P", "B/P", "OM", "ROE", "RG", "EG"]
         features["FUND_NA"] = features[trailing_cols].isna().any(axis=1).astype(int)
         for feat in trailing_cols:
             features[feat] = pd.to_numeric(features[feat], errors="coerce").fillna(0)

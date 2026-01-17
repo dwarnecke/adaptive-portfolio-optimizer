@@ -4,6 +4,7 @@ lxml
 matplotlib
 numpy
 pandas
+scipy
 simfin
 torch
 yfinance

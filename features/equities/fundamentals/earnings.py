@@ -5,7 +5,7 @@ from datetime import datetime
 from pandas import DataFrame, Series
 import pandas as pd
 
-from utils.dates import cast_str_date
+from utils import cast_str_date
 
 
 def get_trailing_earnings(

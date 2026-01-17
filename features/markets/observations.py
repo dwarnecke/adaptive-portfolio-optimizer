@@ -4,13 +4,11 @@ __email__ = "dylan.warnecke@gmail.com"
 import pandas as pd
 from datetime import datetime, timedelta
 
-from features.markets.indicators.vix_term import calc_term_structures
-from features.markets.indicators.index_momentum import calc_log_returns_20d
-from features.markets.indicators.index_volatility import calc_log_return_stds_20d
-from features.markets.indicators.treasury_slope import calc_2y10y_slopes
-from features.markets.forwards.forward_returns import calc_forward_log_returns_20d
-from features.markets.forwards.forward_volatility import calc_forward_log_return_stds_20d
-from utils.dates import list_dates
+from features.markets.macros.vix_term import calc_term_structures
+from features.markets.macros.index_momentum import calc_log_returns_20d
+from features.markets.macros.index_volatility import calc_log_return_stds_20d
+from features.markets.macros.treasury_slope import calc_2y10y_slopes
+from utils import list_dates
 
 
 class ObservationsData:
@@ -29,16 +27,11 @@ class ObservationsData:
         self._start_date = start_date
         self._end_date = end_date
         self.dates = list_dates(start_date, end_date)
-        
-        x = {
+
+        data = {
             "term_difference": calc_term_structures(start_date, end_date),
             "log_ret_20d": calc_log_returns_20d(start_date, end_date),
             "log_ret_std_20d": calc_log_return_stds_20d(start_date, end_date),
             "yield_slope": calc_2y10y_slopes(start_date, end_date),
         }
-        y = {
-            "log_ret_20d": calc_forward_log_returns_20d(start_date, end_date),
-            "log_ret_std_20d": calc_forward_log_return_stds_20d(start_date, end_date),
-        }
-        self.inputs = pd.DataFrame(x).set_index(pd.Index(self.dates), drop=True)
-        self.outputs = pd.DataFrame(y).set_index(pd.Index(self.dates), drop=True)
+        self.data = pd.DataFrame(data).set_index(pd.Index(self.dates), drop=True)

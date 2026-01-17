@@ -1,12 +1,11 @@
 __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
-import numpy as np
 import pandas as pd
-from pandas import DataFrame, DatetimeIndex
+from pandas import DatetimeIndex
 
 from features.markets.observations import ObservationsData
-from features.markets.regime_model import RegimeModel
+from features.markets.regime.model import RegimeModel
 
 
 class MarketData:
@@ -14,26 +13,17 @@ class MarketData:
     Class to hold and manage market regime and observation data.
     """
 
-    def __init__(self, observations: ObservationsData, model_path: str):
+    def __init__(self, observations: ObservationsData, filepath: str):
         """
         Initialize the MarketData object by loading market data.
         :param observations: ObservationsData object containing market observations
-        :param model_path: Path to regime model file
+        :param filepath: Path to regime model file
         """
-        self._observations = observations
-        self._regime = RegimeModel.load(model_path)
-        self.data = self._aggregate()
+        self.observations = observations
+        self.regime = RegimeModel.load(filepath)
+        self.proba = self.regime.calc_regime_proba(observations.data)
+        self.data = pd.concat([observations.data, self.proba], axis=1)
 
-    def _aggregate(self) -> DataFrame:
-        """
-        Aggregate observation features with regime state probabilities.
-        :returns: DataFrame with all features including regime probabilities
-        """
-        observation_inputs = self._observations.inputs.copy()
-        state_probs = self._regime.calc_regime_proba(observation_inputs)
-        combined = pd.concat([observation_inputs, state_probs], axis=1)
-        return combined
-    
     @property
     def index(self) -> DatetimeIndex:
         """
