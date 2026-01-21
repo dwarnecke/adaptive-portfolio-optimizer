@@ -10,7 +10,9 @@ class Entry:
     Class to hold and manage entry data for a position.
     """
 
-    def __init__(self, data: FeaturesData, shares: int, date: datetime, slippage: float):
+    def __init__(
+        self, data: FeaturesData, shares: int, date: datetime, slippage: float
+    ):
         """
         Initialize the Entry object with entry details.
         :param data: FeaturesData object containing equity data

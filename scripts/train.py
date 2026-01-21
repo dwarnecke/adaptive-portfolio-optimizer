@@ -11,7 +11,6 @@ from pathlib import Path
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from scipy.stats import spearmanr
-
 from config.hyperparameters import HYPERPARAMETERS
 from models.model import ForwardModel
 from features.dataset import FeaturesDataset
@@ -31,17 +30,17 @@ def train(
     :param parameters: Dictionary of training parameters, defaults to config
     :return: Trained ForwardModel, dictionary of training losses
     """
-
     batch_size = parameters["batch_size"]
     epochs = parameters["num_epochs"]
     alpha = parameters["alpha"]
     lambda_l2 = parameters["lambda_l2"]
+    ic_cutoff = parameters["ic_cutoff"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Initialize data loaders, model, and optimizer
     print("\nInitializing training... ")
-    loader_train = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    loader_eval = DataLoader(eval_data, batch_size=batch_size)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    eval_loader = DataLoader(eval_data, batch_size=batch_size)
     model = _init_model(train_data, parameters, device)
     optimizer = torch.optim.SGD(model.parameters(), lr=alpha, weight_decay=lambda_l2)
 
@@ -52,17 +51,22 @@ def train(
     for epoch in range(epochs):
         report = f"Epoch {epoch+1}/{epochs}"
 
-        train_loss, train_ic = _train_epoch(model, loader_train, optimizer, parameters)
+        train_loss, train_ic = _train_epoch(model, train_loader, optimizer, parameters)
         losses["train"].append(train_loss)
         ics["train"].append(train_ic)
         report += f", train loss {train_loss:.4f}, train IC {train_ic:.4f}"
 
-        eval_loss, eval_ic = _eval_epoch(model, loader_eval, parameters)
+        eval_loss, eval_ic = _eval_epoch(model, eval_loader, parameters)
         losses["eval"].append(eval_loss)
         ics["eval"].append(eval_ic)
         report += f", eval loss {eval_loss:.4f}, eval IC {eval_ic:.4f}"
 
         print(report, end="\n")
+        
+        # Early stopping if IC cutoff reached to save model
+        if ic_cutoff is not None and eval_ic >= ic_cutoff:
+            print(f"Early stopping; eval IC {eval_ic:.4f}")
+            break
 
     # Save the trained model and parameters to disk
     statistics = {"losses": losses, "ics": ics}
@@ -86,6 +90,7 @@ def _init_model(
         units_hidden=parameters["units_hidden"],
         num_layers=parameters["num_layers"],
         num_heads=parameters["num_heads"],
+        dropout=parameters["dropout"],
     )
     model.to(device)
 
@@ -118,20 +123,24 @@ def _train_epoch(
     device = next(model.parameters()).device
     model.train()
     total_loss = 0.0
-    y_hats = []
-    ys = []
+    all_preds = []
+    all_targets = []
+
     for x, y in loader:
-        x = x.to(device)
-        y = y.to(device)
+        x = x.to(device, non_blocking=True)
+        y = y.to(device, non_blocking=True)
         optimizer.zero_grad()
         loss, y_hat = _calc_loss(model, x, y, parameters)
         loss.backward()
         optimizer.step()
         total_loss += loss.item()
-        y_hats.extend(y_hat[:, 0].detach().cpu().numpy())
-        ys.extend(y[:, 0].cpu().numpy())  # Extract mu values for IC
+        
+        # Collect predictions and targets for IC calculation
+        all_preds.extend(y_hat[:, 0].detach().cpu().numpy())
+        all_targets.extend(y[:, 0].cpu().numpy())
+    
     mean_loss = total_loss / len(loader)
-    ic, _ = spearmanr(y_hats, ys)
+    ic, _ = spearmanr(all_preds, all_targets)
     return mean_loss, ic
 
 
@@ -147,19 +156,23 @@ def _eval_epoch(
     """
     model.eval()
     total_loss = 0.0
-    all_preds = []
-    all_actuals = []
     device = next(model.parameters()).device
+    all_preds = []
+    all_targets = []
+
     with torch.no_grad():
         for x, y in loader:
-            x = x.to(device)
-            y = y.to(device)
+            x = x.to(device, non_blocking=True)
+            y = y.to(device, non_blocking=True)
             loss, y_hat = _calc_loss(model, x, y, parameters)
             total_loss += loss.item()
+            
+            # Collect predictions and targets for IC calculation
             all_preds.extend(y_hat[:, 0].cpu().numpy())
-            all_actuals.extend(y[:, 0].cpu().numpy())  # Extract mu values for IC
+            all_targets.extend(y[:, 0].cpu().numpy())
+
     average_loss = total_loss / len(loader)
-    ic, _ = spearmanr(all_preds, all_actuals)
+    ic, _ = spearmanr(all_preds, all_targets)
     return average_loss, ic
 
 
@@ -172,14 +185,14 @@ def _calc_loss(
     :param x: Input feature tensor
     :param y: True target tensor of shape (batch, 2) with [return, volatility]
     :param parameters: Dictionary of training parameters
-    :return: Loss tensor and model outputs
+    :return: Loss tensor and predictions tensor
     """
     y_hat = model(x)
     mu_hat, sigma_hat = y_hat[:, 0], y_hat[:, 1]
     sigma_hat = torch.clamp(sigma_hat, min=2**-12, max=2**3)
     mu = y[:, 0]
     sigma = y[:, 1]
-    
+
     loss_type = parameters["loss_type"]
     lambda_mu = parameters["lambda_mu"]
 

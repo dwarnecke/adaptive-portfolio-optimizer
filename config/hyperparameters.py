@@ -13,22 +13,27 @@ HYPERPARAMETERS = {
         "tol": 1e-4,  # convergence tolerance
     },
     "forward": {
-        "alpha": 2**-10,  # learning rate
+        "alpha": 2**-8,
         "batch_size": 1024,
-        "num_epochs": 8,
+        "num_epochs": 32,
         "num_layers": 1,
         "num_heads": 2,
         "units_hidden": 32,
-        "lambda_l2": 2**-16,  # L2 regularization
-        "lambda_mu": 2**2,  # mean return loss coefficient
-        "loss_type": "mse",  # loss function type: "nll" or "mse"
+        "dropout": 0,
+        "lambda_l2": 2**-6,
+        "lambda_mu": 2**0,  # mean return loss coefficient
+        "loss_type": "nll",  # loss function type: "nll" or "mse"
+        "ic_cutoff": 0.135,  # early stopping threshold for eval IC (None = no early stopping)
     },
     "portfolio": {
         "covariance_shrinkage": 2**-1,  # covariance shrinkage factor
-        "length": 120,  # rolling covariance window length
-        "rate0": 0.02,  # risk-free rate
+        "covariance_mix": 2**-1,  # mixing weight for forward vs historical covariance 
+        "length": 250,  # rolling covariance window length
+        "risk_free_rate": 0,  # risk-free rate 
         "slippage_bps": 5,  # slippage in basis points
         "commission_bps": 2,  # commission in basis points
-        "dust_threshold": 0.001,  # minimum weight threshold
+        "min_scalar": 2**-2,  # minimum weight threshold
+        "max_scalar": 2**3,  # maximum weight threshold
+        "max_leverage": 2**1,  # maximum portfolio leverage
     },
 }

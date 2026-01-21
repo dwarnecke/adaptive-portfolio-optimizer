@@ -16,7 +16,7 @@ class ForwardModel(nn.Module):
         units_hidden: int = 64,
         num_layers: int = 2,
         num_heads: int = 4,
-        dropout: float = 0.1,
+        dropout: float = 0.3,
     ):
         """
         Initialize the forward return and volatility transformer model.
@@ -32,7 +32,7 @@ class ForwardModel(nn.Module):
         self.register_buffer("_mean", torch.zeros(1, 1, units_in))
         self.register_buffer("_std", torch.ones(1, 1, units_in))
         self.register_buffer("_initialized", torch.tensor(False))
-        
+
         layer = nn.TransformerEncoderLayer(
             d_model=units_hidden,
             nhead=num_heads,

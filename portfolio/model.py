@@ -4,6 +4,7 @@ __email__ = "dylan.warnecke@gmail.com"
 import numpy as np
 import torch
 from datetime import datetime
+from numpy import ndarray
 
 from config.hyperparameters import HYPERPARAMETERS
 from features.dataset import FeaturesDataset
@@ -32,10 +33,13 @@ class PortfolioModel:
         self._dataset = dataset
         self._forward_model = forward_model
         self._parameters = parameters
+        self._max_leverage = parameters["max_leverage"]
+        self._min_scalar = parameters["min_scalar"]
+        self._max_scalar = parameters["max_scalar"]
 
         self._covariance = Covariance(dataset, parameters)
 
-    def predict(self, date: datetime, dataset) -> dict:
+    def predict(self, date: datetime, dataset: FeaturesDataset) -> dict:
         """
         Predict expected returns and volatilities for each equity in the universe.
         Uses batched inference for efficiency.
@@ -50,13 +54,12 @@ class PortfolioModel:
             features_data = dataset.data.get(index)
             if features_data is None:
                 continue
-            result = features_data.get_item_from_date(date)
-            if result is None:
+            if date not in features_data.dates:
                 continue
-            window, _ = result  # Window already includes both equity and market features
+            window, _ = features_data[date]  # Get window and target using datetime
             batch_windows.append(window)
             indices.append(index)
-        
+
         if len(batch_windows) == 0:
             return {}, {}
 
@@ -76,30 +79,71 @@ class PortfolioModel:
         :param parameters: Dictionary of portfolio parameters
         :return: Dictionary mapping equity index to optimal equity weights
         """
-        indices = list(mus.keys())
-        if len(indices) == 0:
-            return {}
-
         covariance = self._covariance.calc_matrix(date, sigmas)
-        mu_vector = np.array([mus[index] for index in indices])
-
-        # Risk free asset ensures non-singularity of the weights
-        mu_vector = np.append(mu_vector, 0.0)
-        covariance = np.pad(covariance, ((0, 1), (0, 1)), constant_values=0.0)
-        covariance[-1, -1] = 1e-8
+        indices = covariance.index.tolist()
+        covariance = covariance.values
+        mu = np.array([mus[idx] for idx in indices])
+        mu = mu - np.mean(mu) # Debias expected returns
 
         # Mean-variance optimization minimizes return-variance difference
         inv_covariance = np.linalg.pinv(covariance)
-        ones = np.ones(len(mu_vector))
-        weights = (inv_covariance @ mu_vector) / (ones.T @ inv_covariance @ mu_vector)
-        weights = weights[:-1]  # Remove risk free asset weight
+        ones = np.ones(len(mu))
+        lambda_ = (ones.T @ inv_covariance @ mu) / (ones.T @ inv_covariance @ ones)
+        weights = inv_covariance @ (mu - lambda_ * ones)
 
-        # Filter out dust positions from the weights
-        threshold = self._parameters["dust_threshold"]
-        total0 = sum(weight for weight in weights)
-        weights = [weight if abs(weight) > threshold else 0.0 for weight in weights]
-        total1 = sum(weight for weight in weights)
-        scale = total0 / total1 if total1 != 0 else 0.0
-        weights = [weight * scale for weight in weights]
-
+        # Limit position sizes and remove dust positions for risk control
+        min_weight = self._min_scalar / len(indices)
+        max_weight = self._max_scalar / len(indices)
+        weights = self._limit_leverage(weights)
+        weights = self._limit_positions(weights, max_weight)
+        weights = self._zero_positions(weights, min_weight)
         return {index: weights[i] for i, index in enumerate(indices)}
+
+    def _limit_leverage(self, weights: ndarray) -> np.ndarray:
+        """
+        Limit total portfolio leverage to a maximum value.
+        :param weights: Array of portfolio weights
+        :param max_leverage: Maximum allowed leverage
+        :return: Weights array with limited leverage
+        """
+        weights = np.array(weights)
+        weight_sum = np.sum(np.abs(weights))
+        if weight_sum > self._max_leverage:
+            weights = self._max_leverage * weights / weight_sum
+        return weights
+
+    def _limit_positions(self, weights: ndarray, max_weight: float) -> np.ndarray:
+        """
+        Apply position size limits by clipping to constraints.
+        :param weights: Array of portfolio weights
+        :param max_weight: Maximum absolute position size
+        :return: Constrained weights array with max leverage and position size
+        """
+        weights = np.array(weights)
+        weight_sum = np.sum(np.abs(weights))
+
+        # Iteratively rescale to enforce max weight constraint
+        for _ in range(4):
+            weight_delta = np.sum(np.maximum(np.abs(weights) - max_weight, 0))
+            weight_sum_hat = weight_sum - weight_delta
+            max_weight_hat = max_weight * weight_sum_hat / weight_sum
+            weights = np.clip(weights, -max_weight_hat, max_weight_hat)
+            weights = weights * weight_sum / weight_sum_hat
+        return weights
+
+    def _zero_positions(self, weights: ndarray, min_weight: float) -> np.ndarray:
+        """
+        Zero out small positions below a certain threshold.
+        :param weights: Array of portfolio weights
+        :param min_weight: Minimum absolute weight to keep
+        :return: Weights array with dust positions set to zero
+        """
+        weights = np.array(weights)
+        weight_sum0 = np.sum(np.abs(weights))
+        weights[np.abs(weights) < min_weight] = 0.0
+
+        # Rescale weights to maintain original leverage
+        weight_sum1 = np.sum(np.abs(weights))
+        if weight_sum1 > 0:
+            weights = weights * (weight_sum0 / weight_sum1)
+        return weights

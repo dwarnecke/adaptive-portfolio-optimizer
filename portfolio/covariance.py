@@ -31,6 +31,7 @@ class Covariance:
 
         self.dataset = dataset
         self._alpha = parameters["covariance_shrinkage"]
+        self._beta = parameters["covariance_mix"]
         self._length = parameters["length"]
         self._log_returns = self._calc_log_daily_returns()
 
@@ -43,18 +44,18 @@ class Covariance:
         """
         returns = self._log_returns[self._log_returns.index <= date]
         returns = returns.tail(self._length)
-        returns = returns.dropna(axis=1)
-        covariance = returns.cov()
+        returns = returns[list(sigmas.keys())]
+        
+        # Calculate historical covariance with shrinkage
+        covariance0 = returns.cov()
+        covariance0 = self._shrink_covariance(covariance0)
 
-        # Shrink the non-diagonal elements for noise reduction
-        covariance = self._shrink_covariance(covariance)
+        # Calculate forward covariance using predicted volatilities
+        correlation = self._convert_correlation(covariance0)
+        covariance1 = self._scale_correlations(correlation, sigmas)
 
-        # Convert the covariance matrix to correlation for scaling
-        correlation = self._convert_correlation(covariance)
-
-        # Scale the correlation matrix with forward volatilities for future covariance
-        covariance = self._scale_correlations(correlation, sigmas).values
-
+        # Mix forward and historical covariances to smooth estimates
+        covariance = self._beta * covariance1 + (1 - self._beta) * covariance0
         return covariance
 
     def _calc_log_daily_returns(self) -> DataFrame:

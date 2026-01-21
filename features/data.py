@@ -101,9 +101,14 @@ class FeaturesData:
         Get a data field value for a specific date.
         :param field: Column name to retrieve
         :param date: Date to retrieve data for
-        :return: Value of the field on the given date
+        :return: Value of the field on the given date, None if not available
         """
-        return self.data.loc[date, field]
+        try:
+            if field in self.data.columns:
+                return self.data.loc[date, field]
+            return self.equity_data.technicals.data.loc[date, field]
+        except KeyError:
+            return None
 
     def get_targets(self, date: datetime) -> tuple[float, float]:
         """
@@ -120,7 +125,10 @@ class FeaturesData:
         :param field: Column name to retrieve (equity, market, or regime features)
         :return: Pandas Series for the requested field aligned to the joined index
         """
-        return self.data[field]
+        # Try joined data first, then fall back to raw technicals data
+        if field in self.data.columns:
+            return self.data[field]
+        return self.equity_data.technicals.data[field]
 
     @property
     def ticker(self) -> str:

@@ -44,7 +44,7 @@ class FeaturesDataset:
         observations_data = ObservationsData(start_date, end_date)
         market_data = MarketData(observations_data, filepath)
 
-        # Skip saving any features for tickers without data
+        # Generate and process features for each ticker
         self.data = {}
         index = 0
         print(f"Processing {len(tickers)} tickers for features...")
@@ -57,6 +57,20 @@ class FeaturesDataset:
             self.data[index] = features_data
             index += 1
         print(f"\nLoaded {index} tickers with features")
+
+        # Build index map for O(1) lookups
+        self._build_index_map()
+
+    def _build_index_map(self):
+        """
+        Build an index map for O(1) lookup in __getitem__.
+        Maps global index -> (ticker_key, local_index)
+        """
+        self._index_map = []
+        for ticker_key, data in self.data.items():
+            data_len = len(data)
+            for local_idx in range(data_len):
+                self._index_map.append((ticker_key, local_idx))
 
     def _to_dict(self, start_date: datetime, end_date: datetime) -> dict:
         """
@@ -112,7 +126,6 @@ class FeaturesDataset:
             manifest = self._to_manifest(filename, start_date, end_date, data_dict)
             with open(manifest_path, "w") as f:
                 json.dump(manifest, f, indent=2)
-            print(f"Manifest: {manifest_path}")
 
             file_size = filepath.stat().st_size / (1024 * 1024)
             num_ticks = len(data_dict)
@@ -173,6 +186,9 @@ class FeaturesDataset:
         instance._path = Path(dataset_bundle.get("path", filepath))
         instance._model_path = None  # Not needed when loading
 
+        # Build index map for O(1) lookups
+        instance._build_index_map()
+
         file_size = filepath.stat().st_size / (1024 * 1024)
         num_ticks = len(instance.data)
         num_samps = sum(len(data.dates) for data in instance.data.values())
@@ -185,14 +201,8 @@ class FeaturesDataset:
         :param index: Index of the desired feature sample
         :return: Tuple of (feature tensor, target value)
         """
-        total = 0
-        for data in self.data.values():
-            length = len(data)
-            if total <= index < total + length:
-                local_index = index - total
-                return data[local_index]
-            total += length
-        raise IndexError(f"Index {index} out of range for dataset of size {len(self)}")
+        ticker_key, local_index = self._index_map[index]
+        return self.data[ticker_key][local_index]
 
     def __len__(self) -> int:
         """

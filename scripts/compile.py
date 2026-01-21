@@ -42,6 +42,6 @@ def compile(
     # Load datasets for performance splits
     print(f"\nCompiling datasets for {len(tickers)} tickers...")
     regime_path = regimes_dir / "regime_model.pkl"
-    length = parameters["features"]["length"]
+    length = parameters["length"]
     dataset = FeaturesDataset(tickers, regime_path, min_date, max_date, length)
     dataset.save(splits, dataset_name, directory)

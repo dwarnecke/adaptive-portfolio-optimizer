@@ -43,6 +43,7 @@ class Portfolio:
         self.capital = {}
         self.history = {}
         self.statistics = {}
+        self.weight_history = {}
 
         # Initialize positions for each equity in the dataset
         self._positions = {}
@@ -62,22 +63,28 @@ class Portfolio:
         self.history[prev_date] = self._init_capital
 
         weights = {i: 0.0 for i in self._dataset.index}
+        rebalance_counter = -1
         for date in dates:
             capital = self.capital[prev_date]
-            capital += self._rebalance(weights, date, capital)
+            
+            # Rebalance every 16 trading days to avoid overtrading
+            if rebalance_counter % 16 == 0:
+                capital += self._rebalance(weights, date, capital)
+            rebalance_counter += 1
+            
             self.capital[date] = capital
             self.history[date] = self._value(date, capital)
 
             # Estimate weights for trading on the next date using the close
-            mus, sigmas = self._model.predict(date)
+            mus, sigmas = self._model.predict(date, self._dataset)
             weights = self._model.weigh(date, mus, sigmas)
+            self.weight_history[date] = weights.copy()  # Store weight history
             prev_date = date
 
         # Calculate portfolio statistics after simulation
         self.statistics["drawdown"] = self._calc_drawdown()
         self.statistics["sharpe"] = self._calc_sharpe()
         self.statistics["return"] = self._calc_return()
-
         return self.statistics
 
     def _rebalance(self, weights: dict, date: datetime, capital: float) -> float:
@@ -89,29 +96,14 @@ class Portfolio:
         :return: Capital change from rebalancing
         """
         delta = 0
-        weights0 = self._weigh(date, capital, close=False)
         total_value = self._value(date, capital, close=False)
-
         for index, position in self._positions.items():
-            weight0 = weights0[index]
             weight = weights[index] if index in weights else 0.0
-
-            # Exit positions with no target weight
             if weight == 0:
                 delta += self._trade(position, 0, date)
                 continue
-
-            # Rebalance only if the change greatly exceeds transaction costs
-            weight_delta = abs(weight - weight0)
-            trade_value = weight_delta * total_value
-            transaction_cost = self._TRANSACTION_BPS / 10_000 * trade_value
-            threshold = 4 * transaction_cost / total_value
-            if weight_delta < threshold:
-                continue
-
             target = weight * total_value
             delta += self._trade(position, target, date)
-
         return delta
 
     def _weigh(self, date: datetime, capital: float, close: bool = True) -> dict:
@@ -176,7 +168,7 @@ class Portfolio:
         """
         sharpe = {}
         returns = []
-        free_mu = self._parameters["rate0"] / 252
+        free_mu = self._parameters["risk_free_rate"] / 252
         values = list(self.history.values())
         return_sigma = 0
         for i, date in enumerate(self.history.keys()):
