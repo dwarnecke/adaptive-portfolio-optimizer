@@ -26,9 +26,9 @@ HYPERPARAMETERS = {
     },
     "portfolio": {
         "covariance_shrinkage": 2**-2,  # covariance shrinkage factor
-        "covariance_mix": 2**-1,  # mixing weight for covariance, 0=hist, 1=pred
+        "covariance_mix": 0,  # mixing weight for covariance, 0=hist, 1=pred 
         "length": 250,  # rolling covariance window length
-        "risk_free_rate": 0,  # risk-free rate
+        "risk_free_rate": 0,  # risk-free rate 
         "slippage_bps": 5,  # slippage in basis points
         "commission_bps": 2,  # commission in basis points
         "min_scalar": 2**-2,  # minimum weight threshold

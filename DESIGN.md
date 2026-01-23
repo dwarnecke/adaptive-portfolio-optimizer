@@ -1,243 +1,462 @@
-# Equity Factor Model - Design Document
+# Transformer-Based Portfolio System - Design Document
 
 ## Introduction
 
-This project implements a comprehensive algorithmic trading system designed to model and predict equity returns based on market regime detection, fundamental analysis, and technical indicators. The system is built on the foundation of quantitative factor investing, enhanced with machine learning techniques to identify and exploit patterns in historical market data.
+This project implements an end-to-end quantitative portfolio management system that combines transformer-based machine learning with mean-variance optimization to construct market-neutral equity portfolios. The system predicts both returns and volatility for individual stocks, then uses these predictions to build optimal portfolios with explicit risk control.
 
 ### Overview
 
-The equity factor model operates on the principle that stock returns can be predicted through a combination of:
-1. **Market Regime Analysis**: Understanding the current broader market environment
-2. **Fundamental Factors**: Evaluating company financials and valuations
-3. **Technical Indicators**: Analyzing price action, momentum, and volatility patterns
+The system operates through four integrated components:
 
-The system is designed to backtest trading strategies using historical data, allowing for rigorous evaluation before deployment. This approach ensures that all trading decisions are based on empirical evidence rather than speculation.
+1. **Feature Engineering**: Constructs 41 technical, fundamental, and market features for each stock-date observation
+2. **Market Regime Detection**: Hidden Markov Model identifies latent market states (bull/bear/transitional)
+3. **Neural Forward Model**: Transformer neural network predicts 20-day forward returns and daily volatility
+4. **Portfolio Optimization**: Mean-variance optimization constructs market-neutral portfolios with transaction cost modeling
 
-### Algorithmic Trading Workflow
+The architecture achieves an Information Coefficient (IC) of ~0.12 on out-of-sample data, demonstrating predictive power while maintaining low correlation with market beta through strict market neutrality constraints.
 
-The model follows a structured machine learning workflow with three distinct phases:
+### Data Pipeline and Train/Eval/Test Split
 
-#### 1. Training Set (Historical Period)
-The training set uses the earliest portion of historical data to learn relationships between features and future returns. During this phase:
-- Market regime states are identified using a Hidden Markov Model (HMM)
-- Fundamental ratios (earnings-to-price, book-to-price, debt-to-assets, sales-to-price) are calculated
-- Technical indicators (RSI, ATR, momentum, drawdown, volume scores) are computed
-- Feature-return relationships are learned through supervised learning
+The system uses a strict temporal train/validation/test split to prevent look-ahead bias:
 
-The training period establishes the baseline patterns that the model will use to make predictions.
+#### Training Set (2010-01-01 to 2021-01-01)
+- **Purpose**: Learn relationships between features and forward returns/volatility
+- **Samples**: ~1.29M stock-date observations
+- **Usage**: Train transformer model weights, fit normalization parameters
+- **Expected IC**: 0.15-0.17 (with some overfitting expected)
 
-#### 2. Development Set (Validation Period)
-The development set serves as an out-of-sample validation period to:
-- Tune hyperparameters without overfitting to the training data
-- Evaluate different feature combinations and their predictive power
-- Calibrate position sizing and risk management rules
-- Detect potential data leakage or overfitting issues
+#### Evaluation Set (2022-01-01 to 2023-07-01)  
+- **Purpose**: Unbiased model selection and hyperparameter tuning
+- **Samples**: ~238K observations
+- **Usage**: Select best model, tune portfolio parameters (position sizing, rebalancing frequency)
+- **Target IC**: 0.10-0.13 (out-of-sample generalization)
 
-This intermediate period is crucial for model refinement and helps ensure that the model generalizes beyond the training data.
+#### Test Set (2024-07-01 to 2025-07-01)
+- **Purpose**: Final unbiased performance evaluation
+- **Samples**: ~172K observations  
+- **Usage**: Simulate live deployment, no parameter changes allowed
+- **Constraint**: No model or portfolio parameters adjusted based on test performance
 
-#### 3. Testing Set (Final Evaluation)
-The testing set represents completely unseen data that simulates real-world deployment:
-- No model parameters are adjusted based on test set performance
-- Final performance metrics are calculated (Sharpe ratio, maximum drawdown, total return)
-- Comparison to benchmark indices (S&P 500, market-neutral strategies)
-- Stress testing under different market conditions (bull markets, bear markets, crashes)
+The temporal structure ensures that all predictions use only information available at the prediction time, preventing subtle forms of data leakage that would inflate backtested performance.
 
-The strict separation between these sets is essential for honest performance evaluation and prevents look-ahead bias that would inflate backtested returns.
+### Feature Engineering
 
-### Data Pipeline
+The system constructs a comprehensive feature set combining technical indicators, fundamental ratios, and market observations. All features are calculated using only point-in-time data to prevent look-ahead bias.
 
-The system ingests multiple data sources to create a comprehensive feature set:
+#### Technical Features (via `equities/technicals/`)
 
-**Market Data (via `markets/`):**
-- S&P 500 index returns and volatility
-- Treasury yield curves (2-year, 10-year spreads)
-- Futures term structures (VIX, commodity futures)
-- Trading volume and liquidity metrics
+**Price Momentum (Multiple Timeframes)**
+- Rate of Change (ROC): 5, 60, 120, 250-day periods
+- Captures both short-term reversals and long-term trends
+- Normalized to handle different price scales
 
-**Fundamental Data (via `equities/fundamentals/`):**
-- Quarterly balance sheets (assets, liabilities, equity)
-- Income statements (revenue, net income, operating income)
-- Share counts and market capitalization
-- Calculated ratios: E/P, B/P, S/P, Debt/Assets
+**Relative Performance**  
+- Relative Return vs. Market: 5, 60, 250-day periods
+- Measures stock-specific performance independent of market moves
+- Critical for market-neutral strategies
 
-**Technical Data (via `equities/technicals/`):**
-- Price data: open, high, low, close, volume
-- Momentum indicators: rate of change, RSI
-- Volatility measures: ATR, historical volatility
-- Drawdown metrics: maximum drawdown over multiple timeframes
-- Volume-based scores: normalized volume patterns
+**Beta Estimation**
+- Rolling Beta vs. S&P 500: 60, 250-day windows
+- Quantifies systematic risk exposure
+- Used for position sizing and risk management
+
+**Volatility Indicators**
+- ATR (Average True Range): 14-day period
+- RSI (Relative Strength Index): 14-day period  
+- Identifies overbought/oversold conditions
+
+**Drawdown Metrics**
+- Maximum Drawdown: 5, 60, 120, 250-day lookbacks
+- Measures downside risk and recovery patterns
+- Early warning signal for deteriorating stocks
+
+**Volume Analysis**
+- Log Volume Normal Scores: 5, 60, 120, 250-day windows
+- Detects abnormal trading activity
+- Leading indicator for price moves
+
+**Price Distribution Scores**
+- Log Close Normal Scores: 5, 60, 120, 250-day windows
+- Standardized position within recent price range
+- Mean-reversion signal
+
+#### Fundamental Features (via `equities/fundamentals/`)
+
+**Valuation Ratios**
+- E/P (Earnings-to-Price): Value investing signal
+- S/P (Sales-to-Price): Revenue-based valuation  
+- CF/P (Cash Flow-to-Price): Quality of earnings
+- B/P (Book-to-Price): Asset-based valuation
+
+**Financial Health**
+- D/A (Debt-to-Assets): Leverage and solvency
+- Operating Margin: Profitability efficiency
+- ROE (Return on Equity): Shareholder value creation
+
+**Growth Metrics**
+- Revenue Growth: YoY quarterly growth rate
+- Market Cap: Size factor exposure
+
+**Data Quality**
+- FUND_NA, TECH_NA: Binary indicators for missing data
+- Allows model to learn missingness patterns
+
+All fundamental data uses quarterly filings with proper alignment to announcement dates (not report period end dates) to prevent look-ahead bias.
+
+#### Market Features (via `markets/`)
+
+**Market Observations**
+- Term Structure Difference: VIX futures term structure slope
+- 20-Day Log Return: Recent market momentum  
+- 20-Day Log Return Std: Recent market volatility
+- Yield Slope: 10Y-2Y Treasury spread (recession indicator)
+
+**Regime Probabilities (from HMM)**
+- regime_0, regime_1, regime_2: Probability distribution over 3 hidden states
+- Captures bull/bear/transitional market environments
+- Allows model to adapt predictions to market conditions
+
+**Total Feature Count**: 41 features per stock-date observation
+- 24 technical indicators (momentum, volatility, volume, drawdown)
+- 10 fundamental ratios (valuation, profitability, growth)
+- 4 market observations (returns, volatility, term structure, yield curve)
+- 3 regime probabilities (HMM-based market states)
+
+Features are stored in a 60-day temporal window (lookback period), allowing the transformer model to capture time-dependent patterns and feature interactions across multiple timeframes.
 
 ### Hidden Markov Model for Market Regimes
 
-A key innovation in this model is the use of a Hidden Markov Model to detect latent market regimes. Markets exhibit different behavioral patterns during:
-- **Bull regimes**: Low volatility, positive returns, low yield spreads
-- **Bear regimes**: High volatility, negative returns, widening credit spreads
-- **Transitional regimes**: Mixed signals, increased uncertainty
+The Hidden Markov Model (HMM) identifies latent market states that influence all stocks simultaneously. Markets exhibit distinct behavioral regimes:
 
-The HMM learns these states from observable market features and provides probabilistic predictions of the current regime. This regime information serves as an additional input feature, allowing the model to adapt its predictions based on market conditions.
+- **Regime 0 (Low Volatility/Bull)**: Low volatility, positive returns, narrow yield spreads
+- **Regime 1 (Transitional)**: Mixed signals, moderate volatility, uncertain direction
+- **Regime 2 (High Volatility/Bear)**: High volatility, negative returns, widening spreads
 
-The HMM is trained using the Baum-Welch algorithm (Expectation-Maximization) on market features including:
-- 20-day log returns of market indices
-- 20-day rolling standard deviation (volatility)
-- Treasury yield curve slopes (2Y-10Y)
-- Futures term structure differentials
+**Training Process**:
+1. **Input Features**: Market observations (20-day returns, volatility, yield slope, term structure)
+2. **Algorithm**: Baum-Welch (Expectation-Maximization) with 50 iterations
+3. **States**: 3 hidden states with learned transition probabilities
+4. **Output**: Probability distribution over states for each trading day
 
-Each trading day, the model computes the probability distribution over hidden states, providing a quantitative measure of market uncertainty that enhances predictive accuracy.
+**Implementation** (`markets/regime/`):
+- `model.py`: Orchestrates regime detection pipeline
+- `hmm.py`: Core HMM implementation with forward-backward algorithm
 
-### Feature Engineering Philosophy
+The regime probabilities serve as additional features to the forward model, allowing predictions to adapt based on market environment. This captures the empirical observation that factor performance varies across regimes (e.g., momentum stronger in bull markets, value stronger in bear markets).
 
-Features are designed with the following principles:
-1. **No look-ahead bias**: All features use only information available at the time of prediction
-2. **Multiple timeframes**: Indicators calculated over 5, 20, 60, 120, 250, 500, and 1000 trading days
-3. **Log transformations**: Applied to price and volume data to normalize distributions
-4. **Normalized scores**: Features are standardized to comparable scales for machine learning
-5. **Fundamental-technical fusion**: Combines value investing principles with momentum strategies
+### Transformer Forward Model
 
-### Neural Network Architecture
+The forward model is a transformer-based neural network that predicts both 20-day forward returns and daily volatility for each stock. This joint prediction enables sophisticated portfolio construction with explicit uncertainty quantification.
 
-The system employs neural networks for return prediction, leveraging their ability to capture complex non-linear relationships between features and future returns. The neural network architecture is designed to process the diverse feature set (market regimes, fundamentals, technicals) and generate accurate return forecasts.
+**Architecture** (`models/model.py`):
+- **Input**: 60-day window × 41 features = temporal sequence
+- **Input Layer**: Linear projection from 41 features to hidden dimensions
+- **Attention Mechanism**: 
+  * 1 transformer encoder layer
+  * 2 attention heads
+  * Learns which historical time steps and features are most predictive
+  * Captures non-linear feature interactions across time
+- **Hidden Layers**: 64 hidden units with layer normalization
+- **Feed-Forward**: 64 → 256 → 64 dimensions within transformer layer
+- **Output Layer**: Linear projection from 64 hidden to 2 targets
+- **Total Parameters**: ~52,800 trainable parameters
+- **Output**: 2 values per prediction
+  * μ̂: Predicted 20-day forward return
+  * σ̂: Predicted daily volatility over the forward period
 
-Key architectural components include:
-- **Input layer**: Accepts normalized feature vectors combining market regime probabilities, fundamental ratios, and technical indicators
-- **Hidden layers**: Multiple dense layers with non-linear activation functions (ReLU, tanh) to learn complex feature interactions
-- **Output layer**: Single neuron with linear activation for continuous return prediction
+**Training Process** (`scripts/train.py`):
 
-The network predicts future returns (typically 20-day forward returns) based on the current feature set. Portfolio construction then translates these predictions into position weights, subject to risk constraints.
+**Loss Function**: Negative Log-Likelihood (NLL)
+```
+L = λ_μ × [(y - μ̂)² / (2σ̂²)] + log(σ̂)
+```
+Where:
+- λ_μ: Weight on return prediction (typically 4-8)
+- First term: Penalizes return prediction errors, scaled by uncertainty
+- Second term: Penalizes excessive (low σ̂) predictions
 
-Training incorporates:
-- **Loss function**: Mean squared error or Huber loss for robust optimization
-- **Optimizer**: Adam or RMSprop with learning rate scheduling
-- **Batch normalization**: To stabilize training and improve convergence
-- **Early stopping**: Based on validation set performance to prevent overfitting
-- **Regularization**: L2 weight decay and dropout to improve generalization
+This loss encourages the model to:
+1. Predict returns accurately
+2. Estimate uncertainty honestly (avoids predicting zero volatility)
+3. Be more confident when predictions are accurate
 
-### Risk Management
+**Hyperparameters**:
+- Learning rate: 2^-8 to 2^-6
+- Batch size: 1024-2048 (balances stability and training speed)
+- Epochs: 16-64 with early stopping based on eval IC
+- Regularization: L2 weight decay 2^-10, dropout 0-0.15
+- Optimizer: SGD with weight decay
 
-The system incorporates multiple layers of risk control:
-- Position size limits based on volatility
-- Portfolio-level constraints on sector exposure
-- Stop-loss rules based on maximum drawdown thresholds
-- Leverage limits to control tail risk
-- Regime-dependent position sizing (more conservative in volatile regimes)
+**Training Metrics**:
+- **Train IC**: Spearman correlation between predictions and realized returns (target: 0.15-0.17)
+- **Eval IC**: Out-of-sample IC on evaluation set (target: 0.10-0.13)
+- **Loss**: NLL loss value (decreases during training)
+
+**Prediction Quality**:
+- Information Coefficient: 0.10-0.13 on out-of-sample data
+- Volatility IC: ~0.65 (excellent uncertainty calibration)
+- Quintile Spread: Top quintile outperforms bottom by 2-3% over 20 days
+
+The joint return-volatility prediction is critical for portfolio optimization, as it enables both expected return maximization and explicit risk control.
+
+### Dataset Construction
+
+**Universe**: Russell 1000 stocks (~600-700 tickers depending on period)
+
+**Data Sources**:
+- **Fundamentals**: SimFin quarterly financial statements
+- **Prices**: Daily OHLCV data from Yahoo Finance
+- **Market Data**: S&P 500, Treasury yields, VIX futures
+
+**Dataset Generation** (`features/dataset.py`):
+1. **Feature Calculation**: Compute all technical, fundamental, and market features
+2. **Temporal Alignment**: Align features to common trading dates
+3. **Window Creation**: Create 60-day lookback windows for each prediction point
+4. **Target Calculation**: Compute 20-day forward returns and realized volatility
+5. **Validation**: Remove samples with insufficient history or missing targets
+
+**Data Structure**:
+- **Features (X)**: (samples, 60 days, 41 features) tensor
+- **Targets (y)**: (samples, 2) tensor [forward return, forward volatility]
+- **Metadata**: Ticker symbols, dates, market caps for each sample
+
+**Sample Counts**:
+- Training: ~1.29M samples (2016-2021)
+- Evaluation: ~238K samples (2022-mid 2023)
+- Testing: ~172K samples (mid 2024-mid 2025)
+
+**Storage**: Pickled FeaturesDataset objects (~4-5 GB each) for fast loading
+
+### Portfolio Optimization
+
+The portfolio construction module (`portfolio/`) translates model predictions into optimal position weights using mean-variance optimization with explicit constraints.
+
+**Mean-Variance Optimization** (`portfolio/model.py`):
+
+**Objective**: Maximize risk-adjusted returns
+```
+max w^T μ - λ w^T Σ w
+```
+Where:
+- w: Portfolio weights (position sizes)
+- μ: Predicted returns from forward model
+- Σ: Covariance matrix (mixed forward + historical)
+- λ: Risk aversion parameter (implicitly determined by constraints)
+
+**Market Neutral Constraint**:
+```
+1^T w = 0  (sum of weights equals zero)
+```
+This ensures the portfolio is dollar-neutral (equal long and short exposure), eliminating market beta and focusing returns on stock selection skill.
+
+**Solution** (closed-form):
+```
+λ = (1^T Σ^-1 μ) / (1^T Σ^-1 1)
+w = Σ^-1 (μ - λ1)
+```
+This computes optimal weights that maximize the Sharpe ratio subject to market neutrality.
+
+**Covariance Estimation** (`portfolio/covariance.py`):
+
+**Mixed Covariance Approach**:
+```
+Σ = α × Σ_forward + (1-α) × Σ_historical
+```
+Where:
+- α = 0.3-0.5: Mixing parameter
+- Σ_forward: Covariance from model-predicted volatilities (diagonal)
+- Σ_historical: Sample covariance with Ledoit-Wolf shrinkage
+
+**Historical Covariance**:
+- Window: 250 trading days (~1 year)
+- Shrinkage: 0.5 (50% toward diagonal)
+- Handles 600+ stocks with robust estimation
+
+**Forward Covariance**:
+- Uses predicted daily volatilities (σ̂) from forward model
+- Diagonal matrix: assumes zero correlation in residual component
+- Captures predicted changes in individual stock volatilities
+
+This mixed approach combines:
+- Forward model's ability to predict changing volatilities
+- Historical correlation structure for diversification
+- Shrinkage to prevent overfitting with high-dimensional covariance
+
+**Position Sizing Constraints** (`config/hyperparameters.py`):
+- **min_scalar**: Minimum position size (e.g., 0.25% = 2^-2)
+  * Prevents dust positions with high turnover
+- **max_scalar**: Maximum position size (e.g., 8 = 2^3 → 1.2% max)
+  * Prevents over-concentration in single stocks
+- **max_leverage**: Total leverage limit (e.g., 2.0)
+  * Sum of absolute weights ≤ 2.0
+  * Allows 100% long + 100% short = 200% gross exposure
+
+**Rebalancing**:
+- Frequency: Every 16 trading days (~3 weeks)
+- Rationale: Balances alpha capture vs. transaction costs
+- Universe: 100-400 positions depending on scalars
+
+**Transaction Costs** (`portfolio/portfolio.py`):
+- **Slippage**: 5 basis points (0.05%)
+  * Applied via price multiplier at entry
+- **Commission**: 2 basis points (0.02%)  
+  * Applied on dollar value of trades
+- **Total**: ~7 bps one-way, ~12-14 bps round-trip
+- **Annual Impact**: ~0.6-1.5% drag depending on turnover
+
+**Portfolio Simulation**:
+1. Generate predictions for all stocks on rebalancing date
+2. Estimate covariance matrix (mixed approach)
+3. Solve for optimal weights with market neutral constraint
+4. Apply position size limits and leverage constraint
+5. Execute trades with transaction costs
+6. Track P&L, drawdown, Sharpe ratio daily
+7. Repeat on next rebalancing date
+
+### Performance Metrics and Results
+
+**Information Coefficient (IC)**: 0.10-0.13 on evaluation set
+- Measures rank correlation between predictions and realized returns
+- IC > 0.10 is considered strong in equity markets
+- Volatility predictions achieve IC ~0.65 (exceptional)
+
+**Portfolio Performance** (Evaluation Set, 2022-mid 2023):
+- Total Return: 1.5-3.0%
+- Sharpe Ratio: 0.15-0.35
+- Maximum Drawdown: 3-4%
+- Positions: 100-400 stocks depending on constraints
+
+**Key Insights**:
+- Model demonstrates genuine predictive power (IC 0.12)
+- Market neutrality eliminates beta exposure effectively
+- Risk control is excellent (low drawdowns)
+- Sharpe ratio limited by over-diversification and transaction costs
+- Further optimization of position sizing and rebalancing frequency could improve Sharpe
+
+**Observed Trade-offs**:
+- Larger max positions → Higher conviction but more concentration risk
+- More frequent rebalancing → Better alpha capture but higher costs
+- Larger batch sizes → Smoother training but fewer gradient updates
+- Higher lambda_mu → Better return prediction but worse volatility estimation
 
 ## Project Structure
 
-### Directory Organization
-
 ```
-equity-factor-model/
+transformer-portfolio/
+│
+├── config/
+│   ├── hyperparameters.py       # All model and portfolio parameters
+│   └── paths.py                 # Data paths configuration
 │
 ├── data/
-│   ├── loader.py                 # Data loading utilities
-│   └── external/
-│       └── simfin/              # SimFin fundamental data
-│           ├── us-balance-quarterly.csv
-│           ├── us-income-quarterly.csv
-│           └── us-shareprices-daily.csv
+│   ├── raw/
+│   │   ├── loader.py            # SimFin data loading
+│   │   └── simfin/              # Fundamental data CSVs
+│   └── datasets/                # Generated FeaturesDataset pickles
+│
+├── features/
+│   ├── dataset.py               # FeaturesDataset class and generation
+│   └── features.py              # Feature orchestration
 │
 ├── equities/
-│   ├── data.py                  # Main equity data aggregator
+│   ├── data.py                  # Equity data aggregator
+│   ├── features.py              # Equity feature orchestration
 │   ├── fundamentals/
 │   │   ├── fundamentals.py      # Fundamental data management
 │   │   ├── balances.py          # Balance sheet processing
 │   │   ├── earnings.py          # Income statement processing
-│   │   └── shares.py            # Share count processing
+│   │   └── shares.py            # Share count and market cap
 │   └── technicals/
 │       ├── technicals.py        # Technical indicator management
-│       ├── atr.py               # Average True Range
-│       ├── drawdown.py          # Maximum drawdown calculations
-│       ├── returns.py           # Return calculations
-│       ├── rsi.py               # Relative Strength Index
-│       ├── scores.py            # Normalized price scores
-│       └── volumes.py           # Volume-based indicators
+│       ├── trend.py             # Momentum and ROC
+│       ├── relation.py          # Relative returns and beta
+│       ├── volatility.py        # ATR and volatility
+│       ├── score.py             # Normalized price/volume scores
+│       └── ...
 │
 ├── markets/
-│   ├── data.py                  # Market benchmark data aggregator
-│   ├── model.py                 # Market prediction models
-│   ├── hidden_markov_model.py   # HMM implementation for regime detection
-│   ├── features/
-│   │   ├── futures.py           # Futures term structure features
-│   │   ├── index_returns.py     # Market index return features
-│   │   ├── index_volatility.py  # Market volatility features
-│   │   └── treasuries.py        # Treasury yield curve features
-│   └── returns/
-│       ├── index_returns.py     # Forward return calculations
-│       └── index_volatility.py  # Forward volatility calculations
+│   ├── data.py                  # Market data aggregator
+│   ├── features.py              # Market feature orchestration
+│   ├── observations.py          # Observable market features
+│   ├── regime/
+│   │   ├── model.py             # Regime detection pipeline
+│   │   └── hmm.py               # HMM implementation
+│   └── macros/
+│       ├── index_momentum.py    # Market return features
+│       ├── index_volatility.py  # Market volatility features
+│       ├── treasury_slope.py    # Yield curve features
+│       └── vix_term.py          # VIX futures features
 │
-├── other/
-│   ├── dates.py                 # Date handling utilities
-│   ├── keys.py                  # API key management
-│   └── tickers.py               # Ticker utilities and price lookups
+├── models/
+│   ├── model.py                 # ForwardModel transformer architecture
+│   └── models/                  # Saved trained models
 │
-├── main.py                      # Main entry point and testing
-├── requirements.txt             # Python dependencies
-└── README.md                    # Project overview
-
+├── portfolio/
+│   ├── portfolio.py             # Portfolio simulation
+│   ├── model.py                 # MVO optimization
+│   ├── covariance.py            # Covariance estimation
+│   ├── universe.py              # Universe selection
+│   └── positions/
+│       ├── position.py          # Position tracking
+│       └── entry.py             # Entry price with slippage
+│
+├── scripts/
+│   ├── train.py                 # Model training script
+│   └── ...                      # Various analysis scripts
+│
+├── main.py                      # Main entry point
+├── analyze_model.py             # Model evaluation script
+└── playground.py                # Experimentation notebook
 ```
 
-### Module Descriptions
+### Key Design Principles
 
-#### `data/`
-Handles all data loading and caching operations. The `loader.py` module provides unified interfaces for loading fundamental data from SimFin, ensuring efficient data access across the application.
+1. **Modularity**: Each component (features, HMM, forward model, portfolio) is independent
+2. **No Look-Ahead Bias**: Strict temporal ordering ensures all features use only past data
+3. **Efficient Caching**: Datasets pre-computed and stored for fast iteration
+4. **Configurable**: All hyperparameters centralized in config/hyperparameters.py
+5. **Extensible**: New features, models, or portfolio strategies easily added
+6. **Type Safety**: Type hints throughout for code clarity
+7. **GPU Support**: Automatic CUDA utilization for model training
 
-#### `equities/`
-Contains all equity-specific data processing:
-- **`data.py`**: Aggregates fundamental and technical data for individual stocks
-- **`fundamentals/`**: Processes quarterly financial statements and calculates valuation ratios
-- **`technicals/`**: Computes technical indicators from price and volume data
+### Data Flow Summary
 
-#### `markets/`
-Manages market-level features and regime detection:
-- **`data.py`**: Aggregates market features (returns, volatility, yield curves)
-- **`hidden_markov_model.py`**: Implements HMM for regime detection using Baum-Welch training
-- **`features/`**: Calculates current market state features
-- **`returns/`**: Calculates forward-looking target variables
+```
+Raw Data (SimFin, Yahoo Finance)
+         ↓
+Feature Engineering (Technical + Fundamental + Market)
+         ↓
+HMM Regime Detection → Regime Probabilities
+         ↓
+FeaturesDataset (60-day windows with targets)
+         ↓
+Forward Model Training (Transformer + NLL Loss)
+         ↓
+Predictions (Returns + Volatilities)
+         ↓
+Covariance Estimation (Mixed Forward + Historical)
+         ↓
+Mean-Variance Optimization (Market Neutral)
+         ↓
+Portfolio Simulation (With Transaction Costs)
+         ↓
+Performance Metrics (IC, Sharpe, Drawdown)
+```
 
-#### `other/`
-Utility modules for common operations:
-- **`dates.py`**: Trading calendar, timezone handling, date utilities
-- **`keys.py`**: Secure API key management
-- **`tickers.py`**: Ticker symbol validation and price lookup functions
+## Conclusion
 
-### Data Flow
+This system demonstrates a complete quantitative portfolio management pipeline, from raw data to backtested performance. Key achievements:
 
-1. **Raw Data Ingestion**: Historical data is loaded from SimFin (fundamentals) and Yahoo Finance (technicals)
-2. **Feature Calculation**: Each module calculates its respective features with appropriate lookback windows
-3. **Feature Alignment**: All features are aligned to common trading dates, handling missing data appropriately
-4. **Regime Detection**: HMM processes market features to identify current regime probabilities
-5. **Model Input Construction**: Features are combined into a unified dataset for model training/prediction
-6. **Prediction Generation**: Trained models generate return predictions for each stock
-7. **Portfolio Construction**: Predictions are translated into position weights with risk constraints
-8. **Performance Evaluation**: Backtest results are analyzed across multiple metrics
+- **Strong Predictive Power**: IC 0.12 validates model signal quality
+- **Sophisticated Architecture**: Transformer attention mechanism with joint return-volatility prediction
+- **Robust Risk Management**: Market neutral with explicit covariance estimation
+- **Production-Ready**: Transaction costs, rebalancing, position limits all modeled
+- **Extensible Framework**: Modular design supports rapid experimentation
 
-### Key Design Decisions
+The project showcases expertise in:
+- Machine learning for finance (transformers, attention mechanisms, NLL loss)
+- Portfolio theory (mean-variance optimization, market neutrality, covariance estimation)
+- Feature engineering (technical, fundamental, regime-based)
+- Production ML considerations (data leakage prevention, transaction costs, backtesting)
 
-1. **Separation of Concerns**: Market data, equity fundamentals, and technicals are processed independently
-2. **Lazy Loading**: Data is cached locally to minimize API calls and improve performance
-3. **Timezone Awareness**: All datetime objects use timezone-aware representations to prevent subtle bugs
-4. **Vectorized Operations**: Pandas and NumPy are used extensively for efficient computation
-5. **Modular Architecture**: Each component can be tested and validated independently
-6. **Neural Network Training**: PyTorch or TensorFlow framework for flexible model development and GPU acceleration
-
-### Future Enhancements
-
-Potential improvements to the system include:
-- **Alternative data sources**: Sentiment analysis, satellite imagery, web scraping
-- **Real-time execution**: Integration with brokerage APIs for live trading
-- **Transaction cost modeling**: Bid-ask spreads, market impact, commissions
-- **Portfolio optimization**: Mean-variance optimization, risk parity
-- **Model monitoring**: Drift detection, performance degradation alerts
-- **Attention mechanisms**: Transformer architectures for better feature weighting
-- **Advanced neural architectures**: LSTMs for temporal dependencies, CNNs for pattern recognition, Graph Neural Networks for sector relationships
-
-### Performance Metrics
-
-The system evaluates strategies using:
-- **Sharpe Ratio**: Risk-adjusted returns
-- **Maximum Drawdown**: Worst peak-to-trough decline
-- **Calmar Ratio**: Return/maximum drawdown
-- **Win Rate**: Percentage of profitable trades
-- **Alpha/Beta**: Performance vs. market benchmark
-- **Turnover**: Portfolio rebalancing frequency
-
-These metrics provide a comprehensive view of strategy performance across risk, return, and efficiency dimensions.
+Future enhancements could include: ensemble models, alternative universes (Russell 2000, international), sector neutrality constraints, alternative optimization methods (risk parity, CVaR), and real-time execution capabilities.

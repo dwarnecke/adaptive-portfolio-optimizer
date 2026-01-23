@@ -64,11 +64,12 @@ class Portfolio:
 
         weights = {i: 0.0 for i in self._dataset.index}
         rebalance_counter = -1
+        rebalance_frequency = self._parameters["rebalance_frequency"]
         for date in dates:
             capital = self.capital[prev_date]
             
-            # Rebalance every 16 trading days to avoid overtrading
-            if rebalance_counter % 16 == 0:
+            # Rebalance every frequency of trading days to avoid overtrading
+            if rebalance_counter % rebalance_frequency == 0:
                 capital += self._rebalance(weights, date, capital)
             rebalance_counter += 1
             

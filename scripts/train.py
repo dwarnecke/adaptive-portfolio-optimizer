@@ -34,42 +34,47 @@ def train(
     epochs = parameters["num_epochs"]
     alpha = parameters["alpha"]
     lambda_l2 = parameters["lambda_l2"]
-    ic_cutoff = parameters["ic_cutoff"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Initialize data loaders, model, and optimizer
     print("\nInitializing training... ")
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     eval_loader = DataLoader(eval_data, batch_size=batch_size)
     model = _init_model(train_data, parameters, device)
     optimizer = torch.optim.SGD(model.parameters(), lr=alpha, weight_decay=lambda_l2)
 
-    # Train and evaluate the model over many epochs
     print(f"\nTraining for {epochs} epochs on device {device}...")
     losses = {"train": [], "eval": []}
-    ics = {"train": [], "eval": []}
+    best_eval_loss = float("inf")
+    best_model_state = None
+
+    # Train the model over many epochs and evaluate performance
     for epoch in range(epochs):
         report = f"Epoch {epoch+1}/{epochs}"
 
-        train_loss, train_ic = _train_epoch(model, train_loader, optimizer, parameters)
+        train_loss = _train_epoch(model, train_loader, optimizer, parameters)
         losses["train"].append(train_loss)
-        ics["train"].append(train_ic)
-        report += f", train loss {train_loss:.4f}, train IC {train_ic:.4f}"
+        report += f", train loss {train_loss:.4f}"
 
-        eval_loss, eval_ic = _eval_epoch(model, eval_loader, parameters)
+        eval_loss = _eval_epoch(model, eval_loader, parameters)
         losses["eval"].append(eval_loss)
-        ics["eval"].append(eval_ic)
-        report += f", eval loss {eval_loss:.4f}, eval IC {eval_ic:.4f}"
+        report += f", eval loss {eval_loss:.4f}"
+
+        # Track best model to save as final trained model
+        if eval_loss < best_eval_loss:
+            best_eval_loss = eval_loss
+            model_state = model.state_dict().items()
+            best_model_state = {k: v.cpu().clone() for k, v in model_state}
+            report += " [BEST]"
 
         print(report, end="\n")
-        
-        # Early stopping if IC cutoff reached to save model
-        if ic_cutoff is not None and eval_ic >= ic_cutoff:
-            print(f"Early stopping; eval IC {eval_ic:.4f}")
-            break
 
-    # Save the trained model and parameters to disk
-    statistics = {"losses": losses, "ics": ics}
+    # Restore best model before saving to ensure optimal performance
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print(f"\nRestored best model with eval loss {best_eval_loss:.4f}")
+
+    # Save the best model and parameters to disk
+    statistics = {"losses": losses}
     _save_model(model, parameters, directory, statistics, train_data, eval_data)
     return model, losses
 
@@ -111,20 +116,18 @@ def _train_epoch(
     loader: DataLoader,
     optimizer: Optimizer,
     parameters: dict,
-) -> tuple[float, float]:
+) -> float:
     """
     Train the model for one epoch over the provided DataLoader.
     :param model: Transformer model to train
     :param loader: DataLoader for training data
     :param optimizer: Optimizer for updating model parameters
     :param parameters: Dictionary of training parameters
-    :return: Average loss and IC over the epoch
+    :return: Average loss over the epoch
     """
     device = next(model.parameters()).device
     model.train()
     total_loss = 0.0
-    all_preds = []
-    all_targets = []
 
     for x, y in loader:
         x = x.to(device, non_blocking=True)
@@ -134,31 +137,22 @@ def _train_epoch(
         loss.backward()
         optimizer.step()
         total_loss += loss.item()
-        
-        # Collect predictions and targets for IC calculation
-        all_preds.extend(y_hat[:, 0].detach().cpu().numpy())
-        all_targets.extend(y[:, 0].cpu().numpy())
-    
+
     mean_loss = total_loss / len(loader)
-    ic, _ = spearmanr(all_preds, all_targets)
-    return mean_loss, ic
+    return mean_loss
 
 
-def _eval_epoch(
-    model: ForwardModel, loader: DataLoader, parameters: dict
-) -> tuple[float, float]:
+def _eval_epoch(model: ForwardModel, loader: DataLoader, parameters: dict) -> float:
     """
     Evaluate the model for one epoch over the provided DataLoader.
     :param model: Transformer model to evaluate
     :param loader: DataLoader for evaluation data
     :param parameters: Dictionary of training parameters
-    :return: Average loss and IC over the epoch
+    :return: Average loss over the epoch
     """
     model.eval()
     total_loss = 0.0
     device = next(model.parameters()).device
-    all_preds = []
-    all_targets = []
 
     with torch.no_grad():
         for x, y in loader:
@@ -166,14 +160,9 @@ def _eval_epoch(
             y = y.to(device, non_blocking=True)
             loss, y_hat = _calc_loss(model, x, y, parameters)
             total_loss += loss.item()
-            
-            # Collect predictions and targets for IC calculation
-            all_preds.extend(y_hat[:, 0].cpu().numpy())
-            all_targets.extend(y[:, 0].cpu().numpy())
 
     average_loss = total_loss / len(loader)
-    ic, _ = spearmanr(all_preds, all_targets)
-    return average_loss, ic
+    return average_loss
 
 
 def _calc_loss(

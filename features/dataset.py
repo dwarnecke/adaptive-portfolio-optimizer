@@ -39,8 +39,7 @@ class FeaturesDataset:
         self._model_path = filepath
         self._path = None
         fund_data = load_fundamentals()
-
-        print(f"Generating market data from {start_date.date()}...")
+        
         observations_data = ObservationsData(start_date, end_date)
         market_data = MarketData(observations_data, filepath)
 

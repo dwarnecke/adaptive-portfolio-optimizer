@@ -64,13 +64,14 @@ class TechnicalsData:
             return
         self._features = pd.DataFrame(index=self._data.index)
 
-        lengths = [5, 60, 120, 250]
+        # Replace 5-day with 20-day features to align with prediction horizon
+        lengths = [20, 60, 120, 250] # [5, 60, 120, 250]
         for length in lengths:
             self._calc_normal_scores(length)
             self._calc_drawdown(length)
             self._calc_momentum(length)
 
-        lengths = [5, 60, 250]
+        lengths = [20, 60, 250] # [5, 60, 250]
         for length in lengths:
             self._calc_relative_return(length)
 
