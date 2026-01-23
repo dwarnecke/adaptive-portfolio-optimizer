@@ -1,11 +1,12 @@
 __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
+import json
 from datetime import datetime
 from pathlib import Path
 
 from config.hyperparameters import HYPERPARAMETERS
-from config.paths import DATASETS_DIR
+from config.paths import DATASETS_DIR, PROJECT_ROOT
 from features.dataset import FeaturesDataset
 from features.markets.observations import ObservationsData
 from features.markets.regime.model import RegimeModel
@@ -26,7 +27,6 @@ def compile(
     :param parameters: Dictionary with hyperparameters, default config
     :param directory: Directory to save dataset files, default config
     """
-    # Determine min/max dates across all splits
     all_starts = [start for start, _ in splits.values()]
     all_ends = [end for _, end in splits.values()]
     min_date = min(all_starts)
@@ -45,3 +45,22 @@ def compile(
     length = parameters["length"]
     dataset = FeaturesDataset(tickers, regime_path, min_date, max_date, length)
     dataset.save(splits, dataset_name, directory)
+
+
+if __name__ == "__main__":
+    tickers_path = PROJECT_ROOT / "tickers.json"
+    with open(tickers_path) as f:
+        tickers = json.load(f)
+    
+    # Split datasets by a year to avoid data leakage
+    splits = {
+        "train": (datetime(2010, 1, 1), datetime(2021, 1, 1)),
+        "eval": (datetime(2022, 1, 1), datetime(2023, 7, 1)),
+        "test": (datetime(2024, 7, 1), datetime(2025, 7, 1)),
+    }
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dataset_name = f"dataset_{timestamp}"
+    
+    print(f"Compiling {dataset_name} with {len(tickers)} tickers...")
+    compile(tickers, dataset_name, splits)
