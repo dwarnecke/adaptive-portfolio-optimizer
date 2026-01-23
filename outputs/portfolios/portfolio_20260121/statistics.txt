@@ -1,4 +1,0 @@
-test_set
-sharpe: 0.90
-max_leverage: 2.0
-max_drawdown: 2.31%

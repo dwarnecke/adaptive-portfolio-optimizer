@@ -1,4 +1,6 @@
 test_set
-sharpe: 0.90
-max_leverage: 2.0
-max_drawdown: 2.31%
+sharpe: 1.17
+max_leverage: 16.0
+max_drawdown: 12.47%
+annualized_return: 28.94%
+risk_free_rate: 2.00%

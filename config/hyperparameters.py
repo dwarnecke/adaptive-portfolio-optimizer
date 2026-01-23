@@ -28,12 +28,12 @@ HYPERPARAMETERS = {
         "covariance_shrinkage": 2**-2,  # covariance shrinkage factor
         "covariance_mix": 2**-1,  # mixing weight for covariance, 0=hist, 1=pred
         "length": 250,  # rolling covariance window length
-        "risk_free_rate": 0,  # risk-free rate
+        "risk_free_rate": 0.02,  # risk-free rate
         "slippage_bps": 5,  # slippage in basis points
         "commission_bps": 2,  # commission in basis points
-        "min_scalar": 2**-2,  # minimum weight threshold
-        "max_scalar": 2**4,  # maximum weight threshold
-        "max_leverage": 2**1,  # maximum portfolio leverage
+        "min_scalar": 2**1,  # minimum weight threshold
+        "max_scalar": 2**7,  # maximum weight threshold
+        "max_leverage": 2**4,  # maximum portfolio leverage
         "rebalance_frequency": 20,  # trading days between rebalances
     },
 }
