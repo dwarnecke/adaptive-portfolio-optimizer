@@ -31,9 +31,9 @@ HYPERPARAMETERS = {
         "risk_free_rate": 0.02,  # risk-free rate
         "slippage_bps": 5,  # slippage in basis points
         "commission_bps": 2,  # commission in basis points
-        "min_scalar": 2**1,  # minimum weight threshold
-        "max_scalar": 2**7,  # maximum weight threshold
-        "max_leverage": 2**4,  # maximum portfolio leverage
+        "min_scalar": 2**0,  # minimum weight threshold
+        "max_scalar": 2**6,  # maximum weight threshold
+        "max_leverage": 2**3,  # maximum portfolio leverage
         "rebalance_frequency": 20,  # trading days between rebalances
     },
 }

@@ -13,9 +13,9 @@ A market-neutral quantitative equity strategy that uses deep learning to predict
 Test set 2024-2025
 | Metric | Value |
 |--------|-------|
-| **Sharpe Ratio** | 1.17 |
-| **Annualized Return** | 28.94% |
-| **Max Drawdown** | 12.47% |
+| **Sharpe Ratio** | 1.08 |
+| **Annualized Return** | 14.11% |
+| **Max Drawdown** | 6.39% |
 
 **Requirements**: Python 3.12+, SimFin API key
 

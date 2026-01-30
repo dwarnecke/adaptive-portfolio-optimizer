@@ -13,7 +13,7 @@ The system operates through four integrated components:
 3. **Neural Forward Model**: Transformer neural network predicts 20-day forward returns and daily volatility
 4. **Portfolio Optimization**: Mean-variance optimization constructs market-neutral portfolios with transaction cost modeling
 
-The architecture achieves an Information Coefficient (IC) of 0.08 on out-of-sample test data, with annualized portfolio returns of 28.94% and Sharpe ratio of 1.17, demonstrating strong predictive power and effective translation to risk-adjusted profits while maintaining market neutrality.
+The architecture achieves an Information Coefficient (IC) of 0.08 on out-of-sample test data, with annualized portfolio returns of 14.11% and Sharpe ratio of 1.08, demonstrating strong predictive power and effective translation to risk-adjusted profits while maintaining market neutrality.
 
 ### Data Pipeline and Train/Eval/Test Split
 
@@ -35,7 +35,7 @@ The system uses a strict temporal train/validation/test split to prevent look-ah
 - **Purpose**: Final unbiased performance evaluation
 - **Samples**: ~186K observations  
 - **Usage**: Simulate live deployment, no parameter changes allowed
-- **Results**: IC=0.0808, Return=+31.71% (13 months), Annualized=28.94%, Sharpe=1.17 (2% RFR), Max DD=12.47%
+- **Results**: IC=0.0808, Return=+16.66% (13 months), Annualized=14.11%, Sharpe=1.08 (2% RFR), Max DD=6.39%
 - **Configuration**: max_scalar=128, max_leverage=16, risk_free_rate=0.02, 20-day rebalancing, market-neutral
 
 The temporal structure ensures that all predictions use only information available at the prediction time, preventing subtle forms of data leakage that would inflate backtested performance.
@@ -452,7 +452,7 @@ Performance Metrics (IC, Sharpe, Drawdown)
 
 This system demonstrates a complete quantitative portfolio management pipeline, from raw data to backtested performance. Key achievements:
 
-- **Strong Predictive Power**: IC 0.12 validates model signal quality
+- **Strong Predictive Power**: IC 0.08 validates model signal quality
 - **Sophisticated Architecture**: Transformer attention mechanism with joint return-volatility prediction
 - **Robust Risk Management**: Market neutral with explicit covariance estimation
 - **Production-Ready**: Transaction costs, rebalancing, position limits all modeled

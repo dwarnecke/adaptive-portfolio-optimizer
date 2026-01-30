@@ -39,28 +39,6 @@ if __name__ == "__main__":
         f"Loaded {len(test_dataset):,} test samples ({len(test_dataset.index)} tickers)"
     )
 
-    # Compute IC (single pass through data)
-    print(f"\n{'='*80}")
-    print("COMPUTING IC")
-    print(f"{'='*80}")
-
-    test_preds = []
-    test_targets = []
-
-    print(f"Processing {len(test_dataset):,} samples...")
-    with torch.no_grad():
-        for i in range(len(test_dataset)):
-            if i % 50000 == 0 and i > 0:
-                print(f"  {i:,} samples processed...")
-            x, y = test_dataset[i]
-            x = x.unsqueeze(0)
-            pred = model(x)
-            test_preds.append(pred[0, 0].item())
-            test_targets.append(y[0].item())
-
-    test_ic, _ = spearmanr(test_preds, test_targets)
-    print(f"\nTest Set IC: {test_ic:.4f}")
-
     # Portfolio simulation
     print(f"\n{'='*80}")
     print("PORTFOLIO SIMULATION")
@@ -100,7 +78,6 @@ if __name__ == "__main__":
     print(f"{'='*80}")
 
     print(f"\nPerformance Metrics:")
-    print(f"  IC:              {test_ic:.4f}")
     print(f"  Final value:     ${final_value_test:,.0f}")
     print(f"  Total return:    {final_return_test*100:+.2f}%")
     print(f"  Max drawdown:    {max_drawdown_test*100:.2f}%")
@@ -130,22 +107,14 @@ if __name__ == "__main__":
     print(f"  Max:     {max(num_securities)}")
 
     print(f"\nRebalancing:")
-    print(f"  Total rebalances: {len(portfolio_test.weight_history)}")
     rebal_freq = HYPERPARAMETERS["portfolio"].get(
         "rebalance_frequency", HYPERPARAMETERS["portfolio"]["length"]
     )
     print(f"  Frequency:        Every {rebal_freq} days")
-
-    # Transaction cost estimate
-    total_trades = sum(
-        len(weights) for weights in portfolio_test.weight_history.values()
-    )
     total_cost_bps = (
         HYPERPARAMETERS["portfolio"]["slippage_bps"]
         + HYPERPARAMETERS["portfolio"]["commission_bps"]
     )
-    print(f"\nTransaction costs:")
-    print(f"  Total trades:     {total_trades:,}")
     print(f"  Cost per trade:   {total_cost_bps} bps")
 
     print(f"\n{'='*80}")
@@ -154,7 +123,6 @@ if __name__ == "__main__":
     print(f"\nModel: {model_dir.name}")
     print(f"Parameters: {total_params:,}")
     print(f"Test period: 2024-07-01 to 2025-07-31 (out-of-sample)")
-    print(f"\nIC {test_ic:.4f} demonstrates genuine predictive power on unseen data.")
     print(
         f"Portfolio: {final_return_test*100:+.2f}% return, {final_sharpe_test:.2f} Sharpe, {max_drawdown_test*100:.2f}% max drawdown."
     )
