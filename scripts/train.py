@@ -55,7 +55,7 @@ def train(
         device=device,
     )
     
-    losses, best_model_state = trainer.train(epochs)
+    losses, _ = trainer.train(epochs)
 
     # Save the best model and parameters to disk
     statistics = {"losses": losses}
@@ -98,7 +98,6 @@ def _save_model(
         json.dump(manifest, f, indent=2)
 
     print(f"Model and parameters saved to {directory}")
-    print(f"Manifest: {manifest_path}")
 
 
 def _to_manifest(

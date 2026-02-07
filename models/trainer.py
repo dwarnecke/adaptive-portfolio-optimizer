@@ -65,7 +65,7 @@ class Trainer:
                 best_eval_loss = eval_loss
                 model_state = self.model.state_dict().items()
                 best_model_state = {k: v.cpu().clone() for k, v in model_state}
-                report += " [BEST]"
+                report += "*"
 
             print(report)
 

@@ -13,16 +13,16 @@ HYPERPARAMETERS = {
         "tol": 1e-4,  # convergence tolerance
     },
     "forward": {
-        "alpha": 2**-8,
+        "alpha": 2**-6,
         "batch_size": 2**11,
-        "num_epochs": 32,
+        "num_epochs": 16,
         "num_layers": 1,
-        "num_heads": 2,
-        "units_hidden": 32,
+        "num_heads": 1,
+        "units_hidden": 8,
         "dropout": 0,
-        "lambda_l2": 2**-16,
-        "lambda_mu": 2**2,  # mean return loss coefficient
-        "loss_type": "mse",  # loss function type: "nll" or "mse"
+        "lambda_l2": 2**-20,
+        "lambda_mu": 2**2,  # return loss coefficient
+        "loss_type": "mse",  # "nll" or "mse"
     },
     "portfolio": {
         "covariance_shrinkage": 2**-2,  # covariance shrinkage factor
@@ -34,6 +34,6 @@ HYPERPARAMETERS = {
         "min_scalar": 2**0,  # minimum weight threshold
         "max_scalar": 2**6,  # maximum weight threshold
         "max_leverage": 2**3,  # maximum portfolio leverage
-        "rebalance_frequency": 20,  # trading days between rebalances
+        "rebalance_frequency": 2**3,  # trading days between rebalances
     },
 }

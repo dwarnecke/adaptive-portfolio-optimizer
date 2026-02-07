@@ -1,9 +1,8 @@
 __author__ = "Dylan Warnecke"
 __email__ = "dylan.warnecke@gmail.com"
 
-import math
 import torch
-from torch import nn, Tensor
+from torch import nn
 
 
 class ForwardModel(nn.Module):
@@ -18,7 +17,6 @@ class ForwardModel(nn.Module):
         num_layers: int = 2,
         num_heads: int = 4,
         dropout: float = 0.3,
-        max_len: int = 60,
     ):
         """
         Initialize the forward return and volatility transformer model.
@@ -27,18 +25,13 @@ class ForwardModel(nn.Module):
         :param num_layers: Number of hidden transformer layers
         :param num_heads: Number of attention heads in transformer layers
         :param dropout: Dropout probability for regularization
-        :param max_len: Maximum sequence length for positional encodings
         """
         super().__init__()
 
-        # Register the normalization parameters for saving
+        # Register the normalization parameters as buffers
         self.register_buffer("_mean", torch.zeros(1, 1, units_in))
         self.register_buffer("_std", torch.ones(1, 1, units_in))
         self.register_buffer("_initialized", torch.tensor(False))
-
-        # Positional encodings enable learning the order of sequences
-        pos_encodings = self._create_positional_encoding(max_len, units_hidden)
-        self.register_buffer("_pos_encoding", pos_encodings)
 
         layer = nn.TransformerEncoderLayer(
             d_model=units_hidden,
@@ -48,28 +41,11 @@ class ForwardModel(nn.Module):
             batch_first=True,
         )
         self.encoder = nn.TransformerEncoder(layer, num_layers=num_layers)
+
         self.input_layer = nn.Linear(units_in, units_hidden)
         self.output_layer = nn.Linear(units_hidden, 2)
 
-    def _create_positional_encoding(
-        self, max_len: int, units_hidden: int
-    ) -> torch.Tensor:
-        """
-        Create sinusoidal positional encodings.
-        :param max_len: Maximum sequence length
-        :param units_hidden: Hidden dimension size
-        :return: Positional encoding tensor of shape (1, max_len, units_hidden)
-        """
-        encodings = torch.zeros(max_len, units_hidden)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, units_hidden, 2).float() * (-math.log(10000.0) / units_hidden)
-        )
-        encodings[:, 0::2] = torch.sin(position * div_term)
-        encodings[:, 1::2] = torch.cos(position * div_term)
-        return encodings.unsqueeze(0)
-
-    def initialize(self, x: Tensor):
+    def initialize(self, x):
         """
         Initialize normalization parameters based on input data.
         :param x: Input tensor of shape (num_samples, sequence_len, units_in)
@@ -83,7 +59,7 @@ class ForwardModel(nn.Module):
         self._std.copy_(stds)
         self._initialized.fill_(True)
 
-    def forward(self, x: Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through the model.
         :param x: Input tensor of shape (batch_size, sequence_len, units_in)
@@ -91,10 +67,6 @@ class ForwardModel(nn.Module):
         """
         x_norm = self._normalize(x)
         y = self.input_layer(x_norm)
-
-        # Positional encodings indicate order of sequences
-        _, seq_len, _ = y.shape
-        y = y + self._pos_encoding[:, :seq_len, :]
 
         # Causal attention mask prevents attention to future time steps
         _, length, _ = y.shape

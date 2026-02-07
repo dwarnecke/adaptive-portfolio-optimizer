@@ -14,7 +14,7 @@ if __name__ == "__main__":
     print("=" * 80)
 
     # Load the trained model
-    model_dir = Path("outputs/models/forward_20260112_022203-evalIC_117")
+    model_dir = Path("outputs/models/forward_20260207_194159")
     model_path = model_dir / "forward_model.pth"
 
     print(f"\nLoading model from {model_dir.name}...")
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     print("  Model loaded successfully")
 
     # Dataset directory with regime model
-    dataset_dir = Path("outputs/datasets/dataset_20260112_221236")
+    dataset_dir = Path("outputs/datasets/dataset_20260205_230400")
     regime_path = dataset_dir / "regimes" / "regime_model.pkl"
 
     # Load pre-computed dataset

@@ -24,7 +24,7 @@ def evaluate(
     Evaluate a trained model on a dataset via portfolio simulation.
     :param model_path: Path to saved model file
     :param dataset_path: Path to dataset directory
-    :param dataset_name: Name of dataset file (e.g., 'russell1000_test.pkl')
+    :param dataset_name: Name of dataset file
     :param start_date: Start date for simulation
     :param end_date: End date for simulation
     :param capital: Initial portfolio capital
