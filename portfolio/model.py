@@ -83,7 +83,6 @@ class PortfolioModel:
         indices = covariance.index.tolist()
         covariance = covariance.values
         mu = np.array([mus[idx] for idx in indices])
-        mu = mu - np.mean(mu) # Debias expected returns
 
         # Mean-variance optimization minimizes return-variance difference
         inv_covariance = np.linalg.pinv(covariance)

@@ -13,30 +13,30 @@ The system operates through four integrated components:
 3. **Neural Forward Model**: Transformer neural network predicts 20-day forward returns and daily volatility
 4. **Portfolio Optimization**: Mean-variance optimization constructs market-neutral portfolios with transaction cost modeling
 
-The architecture achieves an Information Coefficient (IC) of 0.08 on out-of-sample test data, with annualized portfolio returns of 14.11% and Sharpe ratio of 1.08, demonstrating strong predictive power and effective translation to risk-adjusted profits while maintaining market neutrality.
+The architecture achieves an annualized portfolio returns of 4.46% and Sharpe ratio of 1.14 on out of sample test data, demonstrating strong predictive power and effective translation to risk-adjusted profits while maintaining market neutrality.
 
 ### Data Pipeline and Train/Eval/Test Split
 
 The system uses a strict temporal train/validation/test split to prevent look-ahead bias:
 
-#### Training Set (2010-01-01 to 2021-01-31)
+#### Training Set (2010-01-01 to 2021-01-01)
 - **Purpose**: Learn relationships between features and forward returns/volatility
 - **Samples**: ~1.29M stock-date observations
 - **Usage**: Train transformer model weights, fit normalization parameters
 - **Expected IC**: 0.18-0.20 (with some overfitting expected)
 
-#### Evaluation Set (2022-01-01 to 2023-07-31)  
-- **Purpose**: Model checkpoint selection via lowest MSE loss
+#### Evaluation Set (2022-01-01 to 2023-07-01)  
+- **Purpose**: Model checkpoint selection via lowest NLL eval loss
 - **Samples**: ~250K observations
-- **Usage**: Select best checkpoint by minimum eval MSE (not IC), validate generalization
-- **Selection Criterion**: Lowest eval MSE loss (magnitude accuracy over ranking)
+- **Usage**: Select best checkpoint by minimum eval loss, validate generalization
+- **Selection Criterion**: Lowest eval loss (magnitude accuracy over ranking)
 
-#### Test Set (2024-07-01 to 2025-07-31)
+#### Test Set (2024-07-01 to 2026-01-01)
 - **Purpose**: Final unbiased performance evaluation
 - **Samples**: ~186K observations  
 - **Usage**: Simulate live deployment, no parameter changes allowed
-- **Results**: IC=0.0808, Return=+16.66% (13 months), Annualized=14.11%, Sharpe=1.08 (2% RFR), Max DD=6.39%
-- **Configuration**: max_scalar=128, max_leverage=16, risk_free_rate=0.02, 20-day rebalancing, market-neutral
+- **Results**: Return=+6.78% (18 months), Annualized=4.46%, Sharpe=1.14 (0.5% RFR), Max DD=2.75%
+- **Configuration**: max_scalar=16, max_leverage=2, risk_free_rate=0.005, 20-day rebalancing, market-neutral
 
 The temporal structure ensures that all predictions use only information available at the prediction time, preventing subtle forms of data leakage that would inflate backtested performance.
 
@@ -154,54 +154,56 @@ The forward model is a transformer-based neural network that predicts both 20-da
   * 2 attention heads
   * Learns which historical time steps and features are most predictive
   * Captures non-linear feature interactions across time
-- **Hidden Layers**: 32 hidden units with layer normalization
-- **Feed-Forward**: 32 → 128 → 32 dimensions within transformer layer
-- **Output Layer**: Linear projection from 32 hidden to 2 targets
-- **Total Parameters**: 14,114 trainable parameters (reduced from 52K via feature alignment)
+- **Hidden Layers**: 16 hidden units with layer normalization
+- **Feed-Forward**: 16 → 64 → 16 dimensions within transformer layer
+- **Output Layer**: Linear projection from 16 hidden to 2 targets
+- **Total Parameters**: ~3,800 trainable parameters (compact architecture)
 - **Output**: 2 values per prediction
   * μ̂: Predicted 20-day forward return
   * σ̂: Predicted daily volatility over the forward period
 
 **Training Process** (`scripts/train.py`):
 
-**Loss Function**: Mean Squared Error (MSE) with lambda_mu weighting
+**Loss Function**: Negative Log-Likelihood (NLL) with lambda_mu weighting
 ```
 L = λ_μ × [(y - μ̂)² / (2σ̂²)] + log(σ̂)
 ```
 Where:
-- λ_μ: 4 (emphasizes return magnitude accuracy)
-- loss_type: "mse" (focuses on magnitude prediction over uncertainty)
-- First term: Penalizes return prediction errors, scaled by uncertainty
-- Second term: Penalizes excessive confidence (low σ̂) predictions
+- λ_μ: 1 (equal weighting between return accuracy and uncertainty calibration)
+- loss_type: "nll" (full probabilistic prediction)
+- First term: Penalizes return prediction errors, scaled by predicted uncertainty
+- Second term: Log-variance regularization prevents over-confidence
 
-Negative Log-Likelihood (NLL) loss was initially tested but replaced with MSE for improved training stability and more consistent convergence. MSE with high lambda_mu provided better magnitude predictions without the optimization instabilities observed with full NLL.
+NLL loss enables proper probabilistic predictions by jointly optimizing return forecasts and uncertainty estimates. The λ_μ=1 setting balances magnitude accuracy with well-calibrated uncertainty, which is critical for downstream mean-variance optimization.
 
 This loss encourages the model to:
 1. Predict return magnitudes accurately (not just rankings)
 2. Estimate uncertainty honestly (avoids predicting zero volatility)
-3. Align predictions with mean-variance optimization needs
+3. Provide well-calibrated probabilistic forecasts for portfolio optimization
 
-**Checkpoint Selection**: **Best eval MSE loss** (not IC)
+**Checkpoint Selection**: **Best eval loss**
 - Rationale: Portfolio optimization requires accurate magnitudes, not just rankings
 - IC measures rank correlation only, discards magnitude information
-- Empirical validation: MSE-selected models achieve higher Sharpe ratios
+- Empirical validation: Loss-selected models achieve higher Sharpe ratios
 - Best checkpoint restored after training completes
 
 **Hyperparameters**:
-- Learning rate: 2^-8 (0.00390625)
-- Batch size: 2048 (balances stability and training speed)
-- Epochs: 32 with checkpoint selection on best eval loss
-- Regularization: L2 weight decay 2^-16, dropout 0
+- Learning rate: 2^-6 (0.015625)
+- Batch size: 2^11 = 2048 (balances stability and training speed)
+- Epochs: 16 with checkpoint selection on best eval loss
+- Regularization: L2 weight decay 2^-20, dropout 0
+- Attention heads: 2
+- Hidden units: 16
 - Optimizer: SGD with weight decay
 
 **Training Metrics**:
-- **Train Loss**: MSE loss on training set (decreases during training)
-- **Eval Loss**: MSE loss on evaluation set (used for checkpoint selection)
+- **Train Loss**: NLL loss on training set (decreases during training)
+- **Eval Loss**: NLL loss on evaluation set (used for checkpoint selection)
 - **IC Calculation Removed**: Not computed during training for efficiency
 
 **Prediction Quality**:
 - Information Coefficient: 0.0808 on test set (2024-2025)
-- MSE-based selection improves portfolio translation over IC-based selection
+- Eval loss-based selection improves portfolio translation over IC-based selection
 - Key insight: Magnitude accuracy matters more than rank correlation for MVO
 - Feature timescale alignment (20-day features for 20-day predictions) improved generalization
 
@@ -293,17 +295,17 @@ This mixed approach combines:
 - **Key insight**: Correlations change slowly, but volatilities change rapidly - this captures both
 
 **Position Sizing Constraints** (`config/hyperparameters.py`):
-- **min_scalar**: 2 (2^1) minimum position size
+- **min_scalar**: 0.25 (2^-2) minimum position size scalar
   * Prevents dust positions with high turnover
-- **max_scalar**: 128 (2^7) maximum position size
-  * Allows extremely aggressive conviction sizing on highest-signal stocks
-  * With optimal weights, results in ~16x gross leverage when unconstrained
-- **max_leverage**: 16 (2^4) total gross exposure limit
-  * Sum of absolute weights ≤ 16
-  * Allows 800% long + 800% short = 1600% gross exposure
-  * Binding constraint that limits portfolio to 16x total exposure
-- **risk_free_rate**: 0.02 (2% for Sharpe ratio calculation)
-  * Reflects realistic borrowing costs and opportunity cost
+- **max_scalar**: 16 (2^4) maximum position size scalar
+  * Allows aggressive conviction sizing on highest-signal stocks
+  * With optimal weights, results in moderate gross leverage
+- **max_leverage**: 2 (2^1) total gross exposure limit
+  * Sum of absolute weights ≤ 2
+  * Conservative leverage constraint for risk control
+  * Limits portfolio to 2x total exposure
+- **risk_free_rate**: 0.005 (0.5% for Sharpe ratio calculation)
+  * Reflects low-rate environment and realistic borrowing costs
 
 **Rebalancing**:
 - Frequency: Every 20 trading days (~4 weeks)
@@ -329,20 +331,21 @@ This mixed approach combines:
 
 ### Key Design Insights
 
-**Checkpoint Selection**: Models are selected by **lowest eval MSE loss** rather than highest IC. Portfolio optimization requires accurate return magnitudes, not just correct rankings. Empirical results show MSE-selected models achieve significantly higher Sharpe ratios.
+**Checkpoint Selection**: Models are selected by **lowest eval loss**. Portfolio optimization requires accurate return magnitudes, not just correct rankings. Empirical results show loss-selected models achieve significantly higher Sharpe ratios.
 
-**Feature Timescale Alignment**: Using 20/60/120/250-day feature windows (aligned with 20-day prediction horizon) improves generalization over mixed timescales like 5/60/120/250-day. This alignment reduced model parameters by 73% (52K → 14K) while improving test performance.
+**Feature Timescale Alignment**: Using 20/60/120/250-day feature windows (aligned with 20-day prediction horizon) improves generalization over mixed timescales like 5/60/120/250-day. This alignment improved model generalization while reducing architecture to 16 hidden units and 2 attention heads (~3.8K parameters).
 
-**Loss Function**: NLL loss was initially tested but replaced with MSE for improved training stability and convergence. MSE with lambda_mu=4 provides better magnitude predictions for portfolio optimization.
+**Loss Function**: The model uses NLL (Negative Log-Likelihood) loss with lambda_mu=1 for balanced return prediction and uncertainty calibration. This provides well-calibrated probabilistic forecasts essential for mean-variance optimization.
 
 **Observed Trade-offs**:
-- **Checkpoint selection criterion**: MSE loss (magnitude accuracy) > IC (rank correlation) for portfolio optimization
+- **Checkpoint selection criterion**: Eval loss (magnitude accuracy) > IC (rank correlation) for portfolio optimization
 - **Feature timescales**: Aligning feature windows with prediction horizon improves generalization
-- **Extreme leverage**: max_leverage=16x with max_scalar=128 → 29% annualized returns but 12.5% drawdowns (high risk, high reward)
+- **Conservative leverage**: max_leverage=2x with max_scalar=16 → 4.46% annualized returns with 2.75% drawdowns (risk-controlled strategy)
 - Less frequent rebalancing (20 vs 16 days) → Lower transaction costs, higher net returns
 - Lower covariance shrinkage (0.25 vs 0.5) → Better correlation capture for diversification
-- Higher lambda_mu (4) with MSE loss → Focus on magnitude prediction for MVO
-- Risk-free rate in Sharpe: 2% reflects realistic hurdle rate for strategy evaluation
+- NLL loss with lambda_mu=1 → Balanced return prediction and uncertainty calibration
+- Compact architecture (16 hidden units, 2 heads) → ~3.8K parameters prevents overfitting
+- Risk-free rate in Sharpe: 0.5% reflects low-rate environment
 
 ## Project Structure
 

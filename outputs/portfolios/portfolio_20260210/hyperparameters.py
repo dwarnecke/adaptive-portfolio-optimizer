@@ -32,7 +32,7 @@ HYPERPARAMETERS = {
         "slippage_bps": 5,  # slippage in basis points
         "commission_bps": 2,  # commission in basis points
         "min_scalar": 2**-2,  # minimum weight threshold
-        "max_scalar": 2**6,  # maximum weight threshold
+        "max_scalar": 2**4,  # maximum weight threshold
         "max_leverage": 2**1,  # maximum portfolio leverage
         "rebalance_frequency": 20,  # trading days between rebalances
     },

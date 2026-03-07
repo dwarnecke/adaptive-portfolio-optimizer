@@ -67,14 +67,18 @@ class Portfolio:
         rebalance_frequency = self._parameters["rebalance_frequency"]
         for date in dates:
             capital = self.capital[prev_date]
-            
+
             # Rebalance every frequency of trading days to avoid overtrading
             if rebalance_counter % rebalance_frequency == 0:
                 capital += self._rebalance(weights, date, capital)
             rebalance_counter += 1
-            
+
+            # Store capital and portfolio value history for later analysis
             self.capital[date] = capital
-            self.history[date] = self._value(date, capital)
+            value = self._value(date, capital)
+            self.history[date] = value
+            if date.month != prev_date.month:
+                print(f"  {date.year}-{date.month} -- ${value:,.2f}")
 
             # Estimate weights for trading on the next date using the close
             mus, sigmas = self._model.predict(date, self._dataset)

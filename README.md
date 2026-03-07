@@ -5,17 +5,18 @@ A market-neutral quantitative equity strategy that uses deep learning to predict
 ## Pipeline
 
 1. **Feature Engineering**: Computes 41 features per stock including momentum indicators, volatility measures, fundamental ratios (P/E, ROE, etc.), and market regime probabilities from a Hidden Markov Model
-2. **Model Architecture**: 1-layer transformer (14K parameters) processes 60-day sequences to predict 20-day returns and daily volatility
-3. **Portfolio Construction**: Mean-variance optimization with market-neutral constraint (longs offset shorts), 16x maximum leverage, transaction cost modeling (7 bps)
+2. **Model Architecture**: 1-layer transformer with 2 attention heads (~3.8K parameters) processes 60-day sequences to predict 20-day returns and daily volatility
+3. **Portfolio Construction**: Mean-variance optimization with market-neutral constraint (longs offset shorts), 2x maximum leverage, transaction cost modeling (7 bps)
 
 ## Results
 
-Test set 2024-2025
+Test set 2024-2026
 | Metric | Value |
 |--------|-------|
-| **Sharpe Ratio** | 1.08 |
-| **Annualized Return** | 14.11% |
-| **Max Drawdown** | 6.39% |
+| **Sharpe Ratio** | 1.14 |
+| **Total Return** | 6.78% (18 months) |
+| **Annualized Return** | 4.46% |
+| **Max Drawdown** | 2.75% |
 
 **Requirements**: Python 3.12+, SimFin API key
 

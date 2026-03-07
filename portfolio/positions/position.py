@@ -32,7 +32,7 @@ class Position:
         price = self.data.get_data("Open", date)
         if price is None:
             return 0.0
-        
+
         shares = round((value - value0) / price)
         return self._trade(date, shares, slippage)
 
@@ -50,7 +50,7 @@ class Position:
         long = shares > 0
         short = shares < 0
         if (short and self.long) or (long and self.short):
-            
+
             # Exit positions in first in, last out order for taxes
             dates = sorted(list(self.entries.keys()), reverse=True)
             for entry_date in dates:
